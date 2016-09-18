@@ -1,0 +1,106 @@
+(def foldr (bind (_ e ()) e
+		 (op e (x . xs)) (op x (foldr op e xs))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;(def *Y-def* '(bind (f) ((bind (x) (x x)) (bind (g) (f (bind as ((g g) . as)))))))
+
+(def member? (bind (x ()) #f
+		   (x (x . _)) #t
+		   (x (_ . rest)) (member? x rest)))
+
+(def lookup (bind (x ()) #f
+		  (x ((x . v) . _)) v
+		  (x ((_ . _) . rest)) (lookup x rest)))
+
+;; "types": ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(def bind-form? (bind (('&bind _ _)) #t _ #f))
+(def primitive? (bind (x) (member x '(+ - * = < ++ substring string-lenght
+					atom? numeral? string? truth-value?))))
+(def constant? (bind (x) (or (= x ())
+			     (numeral? x)
+			     (string? x)
+			     (truth-value? x)
+			     (primitive? x)
+			     (bind-form? x))))
+
+(def variable? (bind (v) (and (atom? v) (not (constant? v)))))
+
+;; "Macros": ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(def and->ifs (bind (es) (foldr (bind (h t) `(if ,h ,t #f)) #t es)))
+(def or->ifs (bind (es) (foldr (bind (h t) `(if ,h #t ,t)) #f es)))
+(def let->lambda (bind (() e) `(,e)
+		       (((v . x) . rst) e) `((bind (,v) ,(let->lambda rst e)) ,x)))
+
+;; The EVAL: ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(def eval (bind ((? constant? c) _ _) c
+		((? variable? v) env defs) (let ((val (lookup v env)))
+					     (if val val (lookup v defs)))
+		(('quote e) _ _) e
+		(('quasiqote e) env defs) (eval-quasiquote e env defs)
+		(('if pre con alt) env defs) (if (eval pre env defs)
+						 (eval con env defs)
+						 (eval alt env defs))
+		(('and . es) env defs) (eval (and->ifs es) env defs)
+		(('or . es) env defs) (eval (or->ifs es) env defs)
+		(('not e) env defs) (eval `(if ,e #f #t) env defs)	   
+		(('bind . cases) env _) `(&bind cases env)
+		(('let bindings e) en dfs) (eval (let->lambda bindings e) en dfs)
+		((rator . (? variable? rand)) en dfs) (apply (eval rator en dfs)
+							     #;(eval rand en dfs)
+							     (lookup rand en)
+							     dfs)
+		((rator . rands) en dfs) (apply (eval rator en dfs)
+						(map (lambda (x) (eval x en dfs)) rands)
+						dfs)))
+;; eval's little helper:		
+(def eval-quasiquote (bind (('unquote e) env defs) (eval e env defs)
+			   ((h . t) env defs) `(,(eval-quasiquote h env defs)
+						. ,(eval-quasiquote t env defs))
+			   (e _ _) e))
+
+;; ...and The APPLY: ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(def apply (bind ('+ (a b) _) (+ a b) ('- (a b) _) (- a b) ('* (a b) _) (* a b)
+		 ('< (a b) _) (< a b) ('= (a b) _) (= a b)
+		 ('++ ((? string? a) (? string b)) _) (++ a b)
+		 ('string-length (? string? s)) (string-length s)
+		 ('substring (? string? s)
+			     (? numeral? f)
+			     (? numeral? t)) (substring s f t)
+		 ('atom? (a) _) (atom? a) ('numeral? (a) _) (numeral? a)
+		 ('string? (a) _) (string? a) ('truth-value? (a)) (truth-value? a)
+		 ;; tadaam:
+		 (('&bind cases env) as defs) (try-cases cases as defs env)))
+
+(def try-cases (bind (() _ _ _)
+		     'MISMATCH!
+		     (((patt body) . rest) form defs env)
+		     (let ((m (match patt form)))
+		       (if m
+			   (eval body (append m env) defs)
+			   (try-cases rest form defs env)))))
+
+;; ...and The MATCHER: ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(def match (bind ((? constant? c) c bnd dfs) bnd
+		 (('quote e) e bnd dfs) bnd
+		 (('? pred v) f bnd dfs) (let ((val (lookup v bnd)))
+					   (if val
+					       (and (eval `(,pred (quote ,val))
+							  bnd dfs)
+						    bnd)
+					       (and (eval `(,pred (quote ,f))
+							  bnd dfs)
+						    `((,v . ,f) . ,bnd))))
+		 (('? pred) f bnd dfs) (and (eval `(,pred (quote ,f))
+						  bnd dfs)
+					    bnd)
+		 ('_ f bnd dfs) bnd
+		 ('? variable? v) (let ((val (lookup v bnd)))
+				    (if val
+					(and (= val f) bnd)
+					`((,v . ,f) . ,bnd)))
+		 ((p . ps) (f . fs) bnd dfs) (let ((hd (match p f bnd dfs)))
+					       (and hd (match ps fs hd dfs)))))
+
+		 
+;;;; [NB: Y has to be present in the initial defs environment] !!! ;;;;;;;;
+

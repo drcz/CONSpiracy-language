@@ -1,13 +1,137 @@
 #!/usr/bin/guile -s
-!# ;; CONSpiracy v 0.1 by drcz, last touch 2016-09-18. ;;
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+!# ;; CONSpiracy v 0.1 by drcz, last touch 2016-09-18, Eindhoven ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; the author is extremely grateful to Panicz Godek for nice-9 module,
+;; and to euro-garden coffeeshop, for serving excelent coffee :)
 (use-modules (srfi srfi-1) (ice-9 nice-9) (ice-9 pretty-print))
 
+;; currently todo: ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; -- a simplest compiler (...)
+;; -- interactive systems as first class citizens (...)
+;; -- editor/"ide" (...)
+
 ;; Contents: ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; 1. "types"
-;; 2. environments [bindings]
-;; 3. evaluator
-;; 4. REPL
+;; 0. The Algorithmic Language CONSpiracy.
+;; 1. "Types".
+;; 2. Environments [bindings].
+;; 3. Evaluator.
+;; 4. REPL.
+;; appendix. Examples.
+
+;; 0. The Algorithmic Language CONSpiracy. ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; The Algorithmic Language CONSpiracy is an applicative, functional program-
+;; ming language with dynamic typing and lexical scoping. An expression can be
+;; AN ATOM, e.g.:
+;;;;; 23 ;; numeral
+;;;;; "hi!" ;; string
+;;;;; #t ;; truth-value
+;;;;; (&bind ...) ;; bind-form ("a procedure")
+;;;;; x ;; symbol ("a variable")
+;; or A FORM, e.g.:
+;;;;; (+ 2 3) ;; primitive op. application
+;;;;; (+ 2 (* 7 8)) ;; nested pr.op.app.
+;;;;; (if (= x y) x y) ;; conditional expression
+;;;;; `(2 + 3 = ,(+ 2 3)) ;; quasiquote
+;;;;; (bind (0) 1 (n) (* n (f (- n 1)))) ;; bind-form ("a lambda")
+;;;;; etc...
+
+;; Each expression e given a context (i.e. environment) has its value, which
+;; depends on: (a) e alone, if it's a constant, (b) environment and e if it's
+;; a symbol, or (c) type of "operatior" (i.e. first element of list representing
+;; the form) and values of following subexpressions ("operands").
+
+;; Constants, e.g.:
+;;;;; > 23
+;;;;; 23
+;;;;; > "a string"
+;;;;; "a string"
+
+;; Variables, e.g.:
+;;;;; > x
+;;;;; (unbound symbol x)
+;;;;; > (let ((x 2) (y 3)) (+ x y)) ;; two forms here actually!
+;;;;; 5
+
+;; ...and now all the forms:
+;; (1) A QUOTE FORM is (quote <e>) or shorter '<e> for any expression <e>,
+;; and it evaluates to <e>, e.g.:
+;;;;; > 'hi!
+;;;;; hi!
+;;;;; > '(+ 2 3)
+;;;;; (+ 2 3)
+
+;; (2) a QUASIQUOTE FORM is (quasiquote <qe>) for expression possibly containing
+;; unquote forms; it's value is expression <qe> with any (unquote <e>) (or ,<e> in
+;; short) replaced with the value of <e>, e.g.
+;;;;;; > `(hey! 2 + 3 = ,(+ 2 3))
+;;;;;; (hey! 2 + 3 = 5)
+
+;; (3) AN IF FORM is (if <pred> <concl> <alt>) and it's value depends on the value
+;; of <pred> as follows: if it's #f, then if-form's value is the value of <alt>,
+;; otherwise it's the value of <concl>. E.g.:
+;;;;; > (if (= 2 2) 'nice 'boo)
+;;;;; nice
+;;;;; > (if (= 2 3) 'nice 'boo)
+;;;;; boo
+
+;; (4) AND-, OR- and NOT-FORMS are syntactic sugar for IF FORMS, e.g.
+;; (and a b c) <=> (if a (if b c))
+
+;; (5) BIND FORM is (bind p1 e1 ... pn en), it's value is a &bind object,
+;; "a procedure", such that when applied to args finds the first pattern
+;; pi that args matches, and evaluates to the value of ei (for i=1,...,n). E.g.:
+;;;;; > (bind (x) (* x x))
+;;;;; (&bind ((x) (* x x)) ())
+;;;;; >((bind (x) (* x x)) 2)
+;;;;; 4
+;;;;; >((bind (x) (* x x)) (+ 2 3))
+;;;;; ((bind (x) (* x x)) (+ 2 3))
+;;;;; 25
+;;;;; > ((bind (0) 1 _ 23) 0)
+;;;;; 1
+;;;;; > ((bind (0) 1 _ 23) 1)
+;;;;; 23
+
+;; [[todo: describe patterns -- for now cf def. of bind in (3c).]]
+
+;; (6) LET FORM is (let ((v1 e1) ... (vn en)) e) and is syntactic sugar for
+;; embedded BIND FORMS ((bind (vn) ... ((bind (v1) e) e1) ... ) en), e.g.
+;;;;; > (let ((a 2) (b 3) (c (+ a b))) (* c c))
+;;;;; 25
+
+;; (*7*) MAGICKAL DEF FORM is (def <definiens> <definiendum>) for any symbol
+;; <definiens> and any expression <definiendum>. It makes the interpreter
+;; substitute the former for the latter in any evaluated expression. Therefore
+;;;;;; > (def square (bind (x) (* x x)))
+;;;;;;(new shorthand square memoized)
+;;;;;; (+ (square 3) (square 4))
+;;;;;; 25
+;; Since it's binding is dynamic, it allows recursive definitions, such as:
+;;;;;; > (def map (bind (_ ()) ()
+;;;;;;                  (f (x . xs)) `(,(f x) . ,(map f xs))))
+;;;;;; (new shorthand map memoized)
+;;;;;; > (map square '(1 2 3 4 5))
+;;;;;; (1 4 9 16 25)
+;; -- this means actually that map stands for infinite expression of the form
+;; (bind (_ ()) ()
+;;       (f (x . xs)) `(,(f x) . ,((bind (_ ()) ()
+;;                                       (f (x. xs)) `(,(f x) . ...
+;;                                                              f
+;;                                                              xs))) f xs)
+;; (...?)
+
+;; (8) Any other form is an application:
+;; (8a) of primitive operator, e.g.
+;;;;; > (+ 2 3)
+;;;;; 5
+;;;;; > (++ "hi " "there!")
+;;;;; "hi there!"
+;; (8b) of bind object -- cf (5).
+;; ...
+
+;; (...TODO)
+
 
 ;; 1. "types" ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define (numeral? n) (number? n))
@@ -31,23 +155,18 @@
 (define *initial-env*
   `([Y . (bind (f) ((bind (x) (x x)) (bind (g) (f (bind as ((g g) . as))))))]
     ;; primitive operations map to "real" procedures:
-    [+ . ,+]
-    [- . ,-]
-    [* . ,*]
-    [= . ,equal?]
-    [< . ,<]
-    [++ . ,string-append]
-    [substring . ,substring] #;(substring s from to)
-    [string-length . ,string-length]
-    [atom? . ,(lambda (e) (not (pair? e)))]
-    [numeral? . ,numeral?]
-    [string? . ,string?]
-    [truth-value? . ,truth-value?]))
+    [+ . ,+] [- . ,-] [* . ,*] [= . ,equal?] [< . ,<] [++ . ,string-append]
+    [substring . ,substring] [string-length . ,string-length]
+    [atom? . ,(lambda (e) (not (pair? e)))] [numeral? . ,numeral?]
+    [string? . ,string?] [truth-value? . ,truth-value?]))
 
 ;; 3. evaluator ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 ;;; 3a. stripping syntactic sugar: ............................................
 (define (and->ifs es) (fold-right (lambda (h t) (if t `(if ,h ,t #f) h)) #f es))
+#;(e.g (and->ifs '(a b c)) ===> '(if a (if b c #f) #f))
 (define (or->ifs es)  (fold-right (lambda (h t) (if t `(if ,h #t ,t) h)) #f es))
+#;(e.g (or->ifs '(a b c)) ===> '(if a #t (if b #t c)))
 (define (let->lambda bindings expr)
   (fold-right (lambda ((v e) t) `((bind (,v) ,t) ,e)) expr bindings))
 #;(e.g (let->lambda '((x 2) (y 3) (z (+ x y))) '(* z z))
@@ -58,7 +177,11 @@
   (match expr    
     [(? constant? c) c]
     [(? variable? v) (match (lookup v binding)
-		       [#f (Eval (lookup v defs) binding defs)]
+		       [#f (Eval (match (lookup v defs)
+				   [#f (error `(unbound symbol ,v))]
+				   [expr expr])
+				 binding
+				 defs)]
 		       [val val])]
     [('bind . cases) `(&bind ,cases ,binding)]
     [('let bindings e) (Eval (let->lambda bindings e) binding defs)]
@@ -136,10 +259,11 @@
      (display-topenv remaining)]))
 
 (begin ;; RUN
-  (display "(-- ALGORITHMIC LANGUAGE CONSpiracy v0.1 --)") (newline)
-  (display "  copyleft 2016/09/09-18 by Scislav Dercz   ") (newline)
+  (display "   (-- ALGORITHMIC LANGUAGE CONSpiracy v0.1 --)") (newline)
+  (display "copyleft by Scislav Dercz 2016/09/09-18, Eindhoven") (newline)
   (display "type (halt) to quit") (newline)
   (newline)
   (repl 'READY. *initial-env*))
 
+;; appendix: for now cf conspiracy.cpr...
 ;; -- the end -- ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

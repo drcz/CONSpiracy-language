@@ -1,10 +1,9 @@
 #    *ALGORITHMIC LANGUAGE CONSpiracy*
-##    v0.1 2016-09-18, drcz
-###    _"scheme no more, time for conspiracy, yarr!"_
+version 0.1 2016-09-19 Eindhoven, drcz
 
 ![CONSpiracy](/conspiracy.png?raw=true "CONSpiracy")
 
--- a prototype implementation of the programming language of my dreams.
+-- a prototype implementation of the programming language of my dreams. yarr.
 
 tbc...
 

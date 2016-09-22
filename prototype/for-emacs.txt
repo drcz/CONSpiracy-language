@@ -1,0 +1,14 @@
+;;; (...)
+
+(setq show-paren-delay 0
+            show-paren-style 'parenthesis)
+(show-paren-mode t)
+
+(add-hook 'scheme-mode-hook 'rainbow-delimiters-mode)
+
+(set-variable 'scheme-program-name "<full path to your CONSpiracy directory>/icp")
+(global-set-key [(f6)] 'run-scheme)
+
+(add-to-list 'auto-mode-alist '("\\.cpr\\'" . scheme-mode)) ; sic!
+
+;;; (...)

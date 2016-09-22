@@ -36,7 +36,7 @@
 
 ;; Each expression e given a context (i.e. environment) has its value, which
 ;; depends on: (a) e alone, if it's a constant, (b) environment and e if it's
-;; a symbol, or (c) type of "operatior" (i.e. first element of list representing
+;; a symbol, or (c) type of "operator" (i.e. first element of list representing
 ;; the form) and values of following subexpressions ("operands").
 
 ;; Constants, e.g.:
@@ -99,7 +99,7 @@
 ;;;;; > (let ((a 2) (b 3) (c (+ a b))) (* c c))
 ;;;;; 25
 
-;; (*7*) MAGICKAL DEF FORM is (def <definiens> <definiendum>) for any symbol
+;; (*7*) MAGICKAL DEF FORM is (def <definiendum> <definiens>) for any symbol
 ;; <definiens> and any expression <definiendum>. It makes the interpreter
 ;; substitute the former for the latter in any evaluated expression. Therefore
 ;;;;;; > (def square (bind (x) (* x x)))
@@ -166,10 +166,12 @@
 (define (insert s v env) `((,s . ,v) . ,env))
 (define (update s v env) (insert s v (alist-delete s env)))
 
+(define (div a b) (inexact->exact (floor (/ a b)))) ;D
+
 (define *initial-env*
   `([Y . (bind (f) ((bind (x) (x x)) (bind (g) (f (bind as ((g g) . as))))))]
     ;; primitive operations map to "real" procedures:
-    [+ . ,+] [- . ,-] [* . ,*] [/ . ,/] [= . ,equal?] [< . ,<] [% . ,modulo]
+    [+ . ,+] [- . ,-] [* . ,*] [/ . ,div] [= . ,equal?] [< . ,<] [% . ,modulo]
     [++ . ,string-append] [substring . ,substring] [string-length . ,string-length]
     [atom? . ,(lambda (e) (not (pair? e)))] [numeral? . ,numeral?]
     [string? . ,string?] [truth-value? . ,truth-value?]))
@@ -214,13 +216,13 @@
     [('not e) (Eval `(if ,e #f #t) binding defs)]
     [(rator . (? variable? rands)) (Apply (Eval rator binding defs)
 				      (Eval rands binding defs)
-				      defs expr)]
+				      binding defs expr)]
     [(rator . rands) (Apply (Eval rator binding defs)
 			    (map (lambda (e) (Eval e binding defs)) rands)
-			    defs expr)]
+			    binding defs expr)]
     [e (Error `(error evaluating ,e) defs)]))
 
-(define (Apply rator rands defs #;and-for-debug: expr)
+(define (Apply rator rands binding defs #;and-for-debug: expr)
   (match `(,rator . ,rands)
     [((? primitive? p) . rands) #;todo:typechecking-here? (apply p rands)]
     [(('&bind cases env) . vals)
@@ -229,20 +231,25 @@
 	 [()
 	  (Error `(no match in ,expr) defs)]
 	 [(pattern body . cases)
-	  (match (bind pattern vals '() defs)
+	  (match (bind pattern vals '() binding defs)
 	    [#f (try-match cases)]
-	    [binding (Eval body (append binding env) defs)])]))]
+	    [binding0 (Eval body (append binding0 env #;binding) defs)])]))]
     [_ (Error `(unknown application form ,expr) defs)]))
 
 ;;; 3c. the mystic patternmatching: ...........................................
-(define (bind pattern form binding defs)
+(define (bind pattern form binding env defs)
   (match pattern
     [(? constant? c) (and (equal? c form) binding)]
     [('quote e) (and (equal? e form) binding)]
     [('? pred v) (let ([val (lookup v binding)])
 		   (if val
-		       (and (Eval `(,pred (quote ,val)) binding defs) binding)
-		       (and (Eval `(,pred (quote ,form)) binding defs)
+		       (and (Eval `(,pred (quote ,val))
+				  (append binding env)
+				  defs)
+			    binding)
+		       (and (Eval `(,pred (quote ,form))
+				  (append binding env)
+				  defs)
 			    (insert v form binding))))]
     [('? pred) (and (Eval `(,pred (quote ,form)) binding defs) binding)]
     ['_ binding]
@@ -251,8 +258,8 @@
 			   (and (equal? val form) binding)
 			   (insert v form binding)))]
     [(p . ps) (and-let* ([(f . fs) form]
-			 [binding0 (bind p f binding defs)])
-		(bind ps fs binding0 defs))]
+			 [binding0 (bind p f binding env defs)])
+		(bind ps fs binding0 env defs))]
     [e (Error `(syntax error in pattern ,pattern -- ,e) defs)]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -269,7 +276,7 @@
 			     (start-time-now!)
 			     (let ((res (Eval e '() topenv)))
 			       (pretty-print '------------------------)
-			       (pretty-print `(time: ,(get-time-diff) ms))
+			       (pretty-print `(time: ,(get-time-diff) Us))
 			       (newline)
 			       res))			   
 			   topenv)]

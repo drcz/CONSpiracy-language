@@ -1,0 +1,69 @@
+;; CONSpiracy expressiveness example. ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; how many letters (repetitions included) are there in written form of number n?
+;; (Project Euler Problem). ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;; a few little helpers: ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(def foldr (bind (_ e ()) e
+		 (op e (x . xs)) (op x (foldr op e xs))))
+
+(def map (bind (f xs) (foldr (bind (h t) `(,(f h) . ,t)) () xs)))
+(def append (bind (xs ys) (foldr (bind (h t) `(,h . ,t)) ys xs)))
+(def append* (bind xss (foldr append () xss)))
+
+(def modulo (bind (0 m) 0
+		  (m m) 0
+		  ((? (bind (x) (< x 0)) n) m) (modulo (+ n m) m)
+		  (n m) (if (< m n) (modulo (- n m) m) n)))
+
+;;; ok, let's do this! ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(def number->words
+     (bind (0) '("zero")
+	   (1) '("one")
+	   (2) '("two")
+	   (3) '("three")
+	   (4) '("four")
+	   (5) '("five")
+	   (6) '("six")
+	   (7) '("seven")
+	   (8) '("eight")
+	   (9) '("nine")
+	   (10) '("ten")
+	   (11) '("eleven")
+	   (12) '("twelve")
+	   (13) '("thirteen")
+	   (14) '("fourteen")
+	   (15) '("fifteen")
+	   (16) '("sixteen")
+	   (17) '("seventeen")
+	   (18) '("eighteen")
+	   (19) '("nineteen")
+	   (20) '("twenty")
+	   (30) '("thirty")
+	   (40) '("forty")
+	   (50) '("fifty")
+	   (60) '("sixty")
+	   (70) '("seventy")
+	   (80) '("eighty")
+	   (90) '("ninety")
+	   (100) '("one" "hundred")
+	   (n) (if (< n 100)
+		   (let ((dig (modulo n 10)) (dec (- n dig)))
+		     (append (number->words dec) (number->words dig)))
+		   (if (= n 1000)
+		       '("one" "thousand")
+		       (let ((two-dig (modulo n 100)) (hund (/ (- n two-dig) 100)))
+			 (append* (number->words hund)
+				  '("hundred")
+				  (if (= two-dig 0)
+				      ()
+				      (append '("and")
+					      (number->words two-dig)))))))))
+
+(def letter-length (bind (n) (foldr + 0 (map string-length (number->words n)))))
+
+
+
+			
+			
+		    

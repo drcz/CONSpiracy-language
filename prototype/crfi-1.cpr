@@ -1,0 +1,59 @@
+;; CONSpiracy Request For Implementation
+;; -- a list library --
+;;;;;;;;;;;;;;;;;;;;;;;;
+
+(def list? (bind (()) #t ((x . xs)) (list? xs) _ #f))
+
+(def first (bind ((x . _)) x _ #f))
+(def second (bind ((_ x . _)) x _ #f))
+(def third (bind ((_ _ x . _)) x _ #f))
+(def fourth (bind ((_ _ _ x . _)) x _ #f))
+
+(def nth (bind (0 (x . _)) x
+	       (n (_ . xs)) (nth (- n 1) xs)))
+
+(def take (bind (0 _) ()
+		(n (x . xs)) `(,x . ,(take (- n 1) xs))))
+
+(def drop (bind (0 xs) xs
+		(n (x . xs)) (drop (- n 1) xs)))
+
+(def iota (bind (n) (iota n 0)
+		(n n) ()
+		(n m) `(,m . ,(iota n (+ 1 m)))))
+
+(def cons (bind (car cdr) `(,car . ,cdr))) ; :D
+
+(def foldr (bind (_ e ()) e
+		 (op e (x . xs)) (op x (foldr op e xs))))
+
+(def append (bind (xs ys) (foldr cons ys xs)))
+(def map (bind (f xs) (foldr (bind (h t) `(,(f h) . ,t)) () xs)))
+(def length (bind (xs) (foldr (bind (_ t) (+ 1 t)) 0 xs)))
+(def filter (bind (p xs) (foldr (bind ((? p h) t) `(,h . ,t) (_ t) t) () xs)))
+
+(def reverse (bind (xs) (reverse xs ())
+		   (() sx) sx
+		   ((x . xs) sx) (reverse xs `(,x . ,sx))))
+
+(def member? (bind (_ ()) #f
+		   (x (x . _)) #t
+		   (x (_ . xs)) (member? x xs)))
+
+(def lookup (bind (_ ()) #f		  
+		  (k ((k . v) . _)) v
+		  (k (_ . dict)) (lookup k dict)))
+
+(def update (bind (k v ()) `((,k . ,v))
+		  (k v ((k . _) . dict)) `((,k . ,v) . ,dict)
+		  (k v (h . dict)) `(,h . ,(update k v dict))))
+
+(def remove (bind (k ()) ()
+		  (k ((k . v) . dict)) dict
+		  (k (h . dict)) `(,h . ,(remove k dict))))
+
+;;; tbc...
+
+		  
+     
+						 

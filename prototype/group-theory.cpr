@@ -1,0 +1,158 @@
+;;; an excercise in expressiveness -- some group theory!
+
+;; "(use-modules (crfi crfi-1))"
+
+;;; some "set theory" on lists: ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;; something "funny":
+(def push (bind (x) (bind (xs) `(,x . ,xs))))
+
+;;; a "cartesian product" of two lists:
+(def cartesian
+     (bind (xs ys) (append-map (bind (x) (map (bind (y) `(,x ,y)) ys)) xs)))
+;; e.g. (cartesian '(q w e) '(1 2)) => ((q 1) (q 2) (w 1) (w 2) (e 1) (e 2))
+
+;;; a "powerset" of a list:
+(def powerset
+     (bind [()] '(())
+	   [(x . xs)] (let ((Pxs (powerset xs))) (append (map (push x) Pxs) Pxs))))
+;; e.g. (powerset '(0 1 2)) => ((0 1 2) (0 1) (0 2) (0) (1 2) (1) (2) ())
+
+(def subset?
+     (bind (xs ys)
+	   (every? (bind (x) (member? x ys)) xs)))
+;; e.g. (subset? '(1 3) '(0 1 2 3)) => #t
+
+;;; all permutations of given list:
+(def perms
+     (bind [()] '(())
+	   [xs] (append-map (bind (x) (map (push x) (perms (delete x xs)))) xs)))
+;; e.g. (perms '(0 1 2)) => ((0 1 2) (0 2 1) (1 0 2) (1 2 0) (2 0 1) (2 1 0))
+
+
+;;; now the abstract algebra: ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;; at least one definition here must suck, right?
+(def modulo
+     (bind (n m) (if (< n 0)
+		     (modulo (+ n m) m)
+		     (if (or (< m n) (= m n)) (modulo (- n m) m) n))))
+
+;;; composing permutations:
+(def compose-perms
+     (bind (perm1 perm2) (map (bind (p) (nth p perm1)) perm2)))
+;; e.g. (compose-perms '(0 2 1) '(2 1 0)) => (1 2 0)
+
+;;; is given operation closed over domain?
+(def operation-closed?
+     (bind (op dom)
+	   (every? (bind ((x y)) (member? (op x y) dom))
+		   (cartesian dom dom))))
+;; e.g. (operation-closed? compose-perms (perms (iota 3))) => #t
+
+;;; is e neutral element of op (wrt dom)?
+(def neutral-element?
+     (bind (e op dom) (every? (bind (x) (and (= (op e x) x) (= (op x e) x))) dom)))
+; e.g. (neutral-element? '(0 1 2) compose-perms (perms (iota 3))) => #t
+
+;;; is given operation wrt given domain associative?
+(def associative?
+     (bind (op dom)
+	   (every? (bind ((x (y z)))
+			 (= (op x (op y z))
+			    (op (op x y) z)))
+		   (cartesian dom (cartesian dom dom)))))
+;;; e.g. (associative? compose-perms (perms (iota 3))) => #t
+
+;;; yeah...
+(def commutative?
+     (bind (op dom)
+	   (every? (bind ((x y)) (= (op x y) (op y x)))
+		   (cartesian dom dom))))
+;;; e.g. (commutative? + (iota 10)) => T
+
+
+;;; every element x has one and only one inverse y, s.t. x*y=1
+(def has-unique-inverses?
+     (bind (op dom neutr)
+	   (every? (bind (x) (= 1 (length (filter (bind (y)
+							(= (op x y) neutr))
+						  dom))))
+		   dom)))
+
+;;; and the version without uniqueness requirement...
+(def has-inverses?
+     (bind (op dom neutr)
+	   (every? (bind (x) (any? (bind (y) (= (op x y) neutr)) dom)) dom)))
+
+
+;;; finally we can tell what a GROUP is -- tadaam! 
+(def group?
+     (bind ((G e op))
+	   (and (member? e G)
+		(operation-closed? op G)
+		(neutral-element? e op G)
+		(associative? op G)
+		(has-unique-inverses? op G e))))
+;; e.g. (group? `((0) 0 ,+)) => #t :)
+
+;;; or even if it's abelian:
+(def abelian-group?
+     (bind ((G e op)) (and (group? `(,G ,e ,op)) (commutative? op G))))
+
+
+;;; two all-time classics:
+(def create-Zn ;;; cyclic group of order n
+     (bind (n) `(,(iota n) 0 ,(bind (x y) (modulo (+ x y) n)))))
+;; e.g. (group? (create-Zn 5)) => #t
+;; e.g. (abelian-group? (create-Zn 5)) => #t
+
+(def create-Sn ;;; n-th symmetric group
+     (bind (n) `(,(perms (iota n)) ,(iota n) ,compose-perms)))
+;; e.g. (group? (create-Sn 3)) => #t
+;; e.g. (abelian-group? (create-Sn 3)) => #f
+
+
+;;; now ** THE FIRST (and only, 4 now) GROUP-THEORETIC CONSTRUCTION **:
+(def direct-product
+     (bind ((G1 e1 op1) (G2 e2 op2))
+	   `(,(cartesian G1 G2)
+	     (,e1 ,e2)
+	     ,(bind ((x1 x2) (y1 y2))
+		    `(,(op1 x1 y1) ,(op2 x2 y2))))))
+;; e.g. (group? (direct-product (create-Zn 2) (create-Zn 2))) => #t
+;; e.g. (group? (direct-product (create-Sn 3) (create-Zn 2))) => #t
+
+;;; is given subset of G's universe a group (with the same e and op)?
+(def subgroup?
+     (bind (H (G e op))
+	   (and (member? e H)
+		(subset? H G)
+		(operation-closed? op H)
+		(has-inverses? op H e))))
+;; e.g. (subgroup? '((0 1 2) (2 1 0)) (create-Sn 3)) => #t
+
+;;; ok, at least once we'd like to have an accessor:
+(def universe (bind ((G e op)) G))
+;; e.g. (universe (create-Sn 3))
+;;       => ((0 1 2) (0 2 1) (1 0 2) (1 2 0) (2 0 1) (2 1 0))
+
+(def all-subgroups
+     (bind (Gr)
+	   (filter (bind (H) (subgroup? H Gr))
+		   (powerset (universe Gr)))))
+;; e.g. (all-subgroups (create-Sn 3))
+;; => (((0 1 2) (0 2 1) (1 0 2) (1 2 0) (2 0 1) (2 1 0))
+;;     ((0 1 2) (0 2 1))
+;;     ((0 1 2) (1 0 2))
+;;     ((0 1 2) (1 2 0) (2 0 1))
+;;     ((0 1 2) (2 1 0))
+;;     ((0 1 2)))
+
+;; That was neat!
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; todo (perhaps some day):
+;;; -- normal subgroups,
+;;; -- homomorphisms,
+;;; -- Cayley's theorem, ...

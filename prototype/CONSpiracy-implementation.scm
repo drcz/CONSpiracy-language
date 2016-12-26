@@ -1,8 +1,22 @@
-;; CONSpiracy v 0.1 by drcz, last touch 2016-09-18, Eindhoven ;;
+;; CONSpiracy v 0.1 by drcz, 2016-09-18, Eindhoven ;;
+
+;;;; 2016-12-26 def-overriding bug fixes ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;; eg
+;;;; (def f (bind (x) (+ x 1)))
+;;;; (def g (bind (x) (f x)))
+;;;; (let ((f (bind (x) (* x x)))) (g 3))
+;;;; the result should be "4", because "g" stands for
+;;;; "(bind (x) ((bind (x) (+ x 1)) x))".
+;;;; turns out it's just the same as def in scheme now, and we can
+;;;; also do this terrible thing of altering "f", such that it will
+;;;; immediately alter the meaning of "g". this is handy for REPL but
+;;;; not acceptable for the language in general, but no worries, we
+;;;; have a "remedy", Y-inliner (cf ../fnord/d3-to-yarr.scm)...
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (use-modules (srfi srfi-1) (ice-9 nice-9) (ice-9 pretty-print))
 
 ;; currently todo: ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; -- a simplest compiler (...)
+;; -- a simplest compiler (...) -> yeah, sure :> ../fnord/
 ;; -- interactive systems as first class citizens (...)
 ;; -- editor/"ide" (...)
 
@@ -100,7 +114,7 @@
 ;;;;; 25
 
 ;; (*7*) MAGICKAL DEF FORM is (def <definiendum> <definiens>) for any symbol
-;; <definiens> and any expression <definiendum>. It makes the interpreter
+;; <definiendum> and any expression <definiens>. It makes the interpreter
 ;; substitute the former for the latter in any evaluated expression. Therefore
 ;;;;;; > (def square (bind (x) (* x x)))
 ;;;;;;(new shorthand square memoized)
@@ -162,7 +176,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; 2. environments (bindings) ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define (lookup s env) (assoc-ref env s))
+(define (lookup s env) (or (assoc-ref env s) '&UNBOUND))
 (define (insert s v env) `((,s . ,v) . ,env))
 (define (update s v env) (insert s v (alist-delete s env)))
 
@@ -194,11 +208,12 @@
   (match expr    
     [(? constant? c) c]
     [(? variable? v) (match (lookup v binding)
-		       [#f (Eval (match (lookup v defs)
-				   [#f (Error `(unbound symbol ,v) defs)]
-				   [expr expr])
-				 binding
-				 defs)]
+		       ['&UNBOUND (Eval (match (lookup v defs)
+					  ['&UNBOUND
+					   (Error `(unbound symbol ,v) defs)]
+					  [expr expr])
+					*initial-env* #;binding ;;<- of course!
+					defs)]
 		       [val val])]
     [('bind . cases) `(&bind ,cases ,binding)]
     [('let bindings e) (Eval (let->lambda bindings e) binding defs)]
@@ -242,7 +257,7 @@
     [(? constant? c) (and (equal? c form) binding)]
     [('quote e) (and (equal? e form) binding)]
     [('? pred v) (let ([val (lookup v binding)])
-		   (if val
+		   (if (not (eq? val '&UNBOUND))
 		       (and (Eval `(,pred (quote ,val))
 				  (append binding env)
 				  defs)
@@ -254,7 +269,7 @@
     [('? pred) (and (Eval `(,pred (quote ,form)) binding defs) binding)]
     ['_ binding]
     [(? variable? v) (let ([val (lookup v binding)])
-		       (if val
+		       (if (not (eq? val '&UNBOUND))
 			   (and (equal? val form) binding)
 			   (insert v form binding)))]
     [(p . ps) (and-let* ([(f . fs) form]
@@ -327,11 +342,12 @@
   (match expr    
     [(? constant? c) c]
     [(? variable? v) (match (lookup v binding)
-		       [#f (Eval-trace (match (lookup v defs)
-				   [#f (Error `(unbound symbol ,v) defs)]
-				   [expr expr])
-				 binding
-				 defs)]
+		       ['&UNBOUND (Eval-trace (match (lookup v defs)
+						['&UNBOUND
+						 (Error `(unbound symbol ,v) defs)]
+						[expr expr])
+					      *initial-env* #;binding
+					      defs)]
 		       [val val])]
     [('bind . cases) `(&bind ,cases ,binding)]
     [('let bindings e) (Eval-trace (let->lambda bindings e) binding defs)]

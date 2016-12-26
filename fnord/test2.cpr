@@ -1,0 +1,18 @@
+[(def kons (bind (kar kdr) `(,kar . ,kdr))) ; ...
+
+ (def foldr (bind (_ e ()) e
+		  (op e (x . xs)) (op x (foldr op e xs))))
+
+ (def append (bind (xs ys) (foldr kons ys xs)))
+ (def map (bind (f xs) (foldr (bind (h t) `(,(f h) . ,t)) () xs)))
+ (def filter (bind (p? xs) (foldr (bind ((? p? h) t) `(,h . ,t) (_ t) t) () xs)))
+ (def reverse (bind (xs) (reverse xs ())
+		    (() sx) sx
+		    ((x . xs) sx) (reverse xs `(,x . ,sx))))
+
+ (let ((xs '(1 -2 3 -4))
+       (xs2 (map (bind (x) (* x x)) xs))
+       (ys (append xs xs2)))
+   (reverse (filter (bind (x) (< 0 x)) ys)))]
+
+

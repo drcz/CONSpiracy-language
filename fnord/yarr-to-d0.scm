@@ -1,6 +1,13 @@
 (use-modules (ice-9 nice-9) (srfi srfi-1) (ice-9 pretty-print))
 (define member? member) ; he_he
 
+;;; note this one does not get rid of "duplications";
+;;; it should be able to identify alpha-equivalent lambdas,
+;;; so that the lambdas-explosion of d3-to-yarr.scm could be tamed a bit.
+;;; and just think what will happen if we first cps-ize yarr code...
+
+;;; -> this is a nice point to stop this nonsense.
+
 (define (atom? x) (not (pair? x)))
 
 (define *prim-env* ;; just copied y'know
@@ -31,7 +38,7 @@
 (define (free-vars-of expr)
   (match expr
     [(or (? number?) (? boolean?) (? null?)) '()]
-    [(? primop?) '()]
+    [(? primop?) '()] ;; WATCH OUT, it's NOT safe, var can have primop's name...
     [(? symbol? s) `(,s)]
     [('quote _) '()]
     [('if p c a) (lset-union equal?

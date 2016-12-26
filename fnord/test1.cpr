@@ -1,0 +1,3 @@
+[(def sq (bind (x) (* x x)))
+ (def succ (bind (x) (+ x 1)))
+ (* (sq 3) (sq (succ 3)))]

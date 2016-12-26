@@ -1,6 +1,6 @@
 ;; CONSpiracy Request For Implementation
-;; -- a list library --
-;;;;;;;;;;;;;;;;;;;;;;;;
+;; -- 1: a list library --
+;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (def list? (bind (()) #t ((x . xs)) (list? xs) _ #f))
 
@@ -30,7 +30,10 @@
 (def append (bind (xs ys) (foldr cons ys xs)))
 (def map (bind (f xs) (foldr (bind (h t) `(,(f h) . ,t)) () xs)))
 (def length (bind (xs) (foldr (bind (_ t) (+ 1 t)) 0 xs)))
-(def filter (bind (p xs) (foldr (bind ((? p h) t) `(,h . ,t) (_ t) t) () xs)))
+(def filter (bind (p? xs) (foldr (bind ((? p? h) t) `(,h . ,t) (_ t) t) () xs)))
+
+(def any? (bind (p? xs) (foldr (bind (h t) (or (p? h) t)) #f xs)))
+(def every? (bind (p? xs) (foldr (bind (h t) (and (p? h) t)) #t xs)))
 
 (def reverse (bind (xs) (reverse xs ())
 		   (() sx) sx

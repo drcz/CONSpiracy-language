@@ -1,0 +1,7 @@
+[(map f (map (mk-adder 3) '(1 2 3 4 5)))
+ (mk-adder . (lambda (x) (lambda (y) (+ x y))))
+ (f . (lambda (n) (if (= n 0) 1 (* n (f (- n 1))))))
+ (fold-r . (lambda (xs e op) (if (= xs ()) e (op (car xs) (fold-r (cdr xs) e op)))))
+ (map . (lambda (f xs) (fold-r xs () (lambda (h t) (cons (f h) t)))))
+ #;(map . (lambda (f xs) (if (= xs ()) () (cons (f (car xs)) (map f (cdr xs))))))]
+ 

@@ -1,6 +1,6 @@
 (use-modules (ice-9 match))
 
-(define (atom? x) (not (pair? x)))
+(define (atom? x) (not (or (null? x) (pair? x))))
 
 (define (lookup s env)
   (match env

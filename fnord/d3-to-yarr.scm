@@ -1,6 +1,7 @@
 (use-modules (ice-9 pretty-print) (ice-9 nice-9))
 (define member? member)
-(define (atom? x) (not (pair? x)))
+(define (atom? x) (not (or (null? x) (pair? x))))
+;(define (atom? x) (not (pair? x)))
 
 (define (lookup s env)
   (match env

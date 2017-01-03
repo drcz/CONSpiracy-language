@@ -8,7 +8,7 @@
 
 ;;; -> this is a nice point to stop this nonsense.
 
-(define (atom? x) (not (pair? x)))
+(define (atom? x) (not (or (null? x) (pair? x)))) ;; ah! () should not be an atom?? -> at least for (f . a) etc.
 
 (define *prim-env* ;; just copied y'know
   `((truth-value? . ,boolean?) (atom? . ,atom?) (numeral? . ,number?)

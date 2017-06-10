@@ -176,18 +176,26 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; 2. environments (bindings) ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define (lookup s env) (or (assoc-ref env s) '&UNBOUND))
+(define ((is? x) y) (equal? x y))
+
+(define (lookup s env)
+  (match env
+    [() '&UNBOUND]
+    [([(? (is? s)) . v] . _) v]
+    [(_ . env) (lookup s env)]))
+
 (define (insert s v env) `((,s . ,v) . ,env))
 (define (update s v env) (insert s v (alist-delete s env)))
 
 (define (div a b) (inexact->exact (floor (/ a b)))) ;D
 
 (define *initial-env*
-  `([Y . (bind (f) ((bind (x) (x x)) (bind (g) (f (bind as ((g g) . as))))))]
+  `([Y . (bind (f) ((bind (x) (x x)) (bind (g) (f (bind as ((g g) . as))))))] ;?!
     ;; primitive operations map to "real" procedures:
     [+ . ,+] [- . ,-] [* . ,*] [/ . ,div] [= . ,equal?] [< . ,<] [% . ,modulo]
     [++ . ,string-append] [substring . ,substring] [string-length . ,string-length]
     [atom? . ,(lambda (e) (not (pair? e)))] [numeral? . ,numeral?]
+    [bind-form? . ,bind-form?]
     [string? . ,string?] [truth-value? . ,truth-value?]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

@@ -8,13 +8,6 @@
 ;;; this is dirty, incomplete and buggy prototype, BUT it should suffice
 ;;; to check out some new ideas. 
 
-;;; the most obvious problem will be to make bind-form? predicate work,
-;;; i.e. instead of `(<id number> . <closure vars>) labels we should have
-;;; some "magical marker" like &CLOSURE; there are also other problems,
-;;; some of them me are aware of... [eg no support for guards, too broad
-;;; definitions, plepleple]
-
-
 ;;; an example CONSpiracy code with some HOFs:
 (define example1
   '[ (def run-me (bind (xs) (map (mk-add 3) xs)))
@@ -104,9 +97,9 @@
 
 ;;; two completely mindless defs hehehe.
 (define (patternized constructor)
-  (and-let* ([(_qqt (id . vars)) constructor]
+  (and-let* ([(_qqt (&CLOSURE id . vars)) constructor]
 	     [patternized-vars (map (lambda ((_unquote var)) var) vars)])
-    `(,id . ,patternized-vars)))
+    `(&CLOSURE ,id . ,patternized-vars)))
 
 (define (with-inlined-topenv #;of program #;the expr)
   (let ((defs (map (lambda ((_df v e)) `(,v . ,e)) program)))
@@ -141,8 +134,9 @@
 		 (let* ([closure-vars
 			 (difference (free-variables bf) topenv-vars)]
 			[constructor
-			 `(,'quasiquote (,index . ,(map (lambda (v) `(,'unquote ,v))
-							closure-vars)))])
+			 `(,'quasiquote (&CLOSURE ,index 
+					 . ,(map (lambda (v) `(,'unquote ,v))
+						 closure-vars)))])
 		   `(,bf . ,constructor)))
 	       bindforms
 	       (iota (length bindforms)))]
@@ -168,9 +162,11 @@
 	  '(('+ n m) (+ n m)
 	    ('- n m) (- n m)
 	    ('* n m) (* n m)
-	    ('= n m) (= n m)
+	    ('= n m) (= n m) ;; "(= n n) #t (= n m) #f" might inline harder...
 	    ('atom? x) (atom? x)
-	    ('numeral? x) (numeral? x) ;;; TODO (bind-form? x)!!!
+	    ('numeral? x) (numeral? x)
+	    ('bind-form? ('&CLOSURE . _)) #t
+	    ('bind-form? _) #f
 	    ('truth-value? x) (truth-value? x))]
 	 #;...)
     `(def APPLY (bind ,@APPLY-clauses ,@primop-clauses))))
@@ -186,19 +182,22 @@
       (def map (bind (f xs) (foldr (bind (h t) `(,(f h) . ,t)) () xs)))])
  ===>
  (def APPLY
-      (bind ((0) xs) (APPLY `(4) (APPLY `(2) 3) xs)
-	    ((1) op e ()) e
-	    ((1) op e (x . xs)) (APPLY op x (APPLY `(1) op e xs))
-	    ((2) x) `(3 ,x)
-	    ((3 x) y) (APPLY '+ x y)
-	    ((4) f xs) (APPLY `(1) `(5 ,f) () xs)
-	    ((5 f) h t) `(,(APPLY f h) . ,t)
+      (bind ((&CLOSURE 0) xs) (APPLY `(&CLOSURE 4) (APPLY `(&CLOSURE 2) 3) xs)
+	    ((&CLOSURE 1) op e ()) e
+	    ((&CLOSURE 1) op e (x . xs)) (APPLY op x (APPLY `(&CLOSURE 1) op e xs))
+	    ((&CLOSURE 2) x) `(&CLOSURE 3 ,x)
+	    ((&CLOSURE 3 x) y) (APPLY '+ x y)
+	    ((&CLOSURE 4) f xs) (APPLY `(&CLOSURE 1) `(&CLOSURE 5 ,f) () xs)
+	    ((&CLOSURE 5 f) h t) `(,(APPLY f h) unquote t)
+	    ;;; + satan's little helpers:
 	    ('+ n m) (+ n m)
 	    ('- n m) (- n m)
 	    ('* n m) (* n m)
 	    ('= n m) (= n m)
 	    ('atom? x) (atom? x)
 	    ('numeral? x) (numeral? x)
+	    ('bind-form? ((quote &CLOSURE) . _)) #t
+	    ('bind-form? _) #f
 	    ('truth-value? x) (truth-value? x)))]
 
 
@@ -217,3 +216,25 @@
 		     (m n) (* m (pow m (- n 1)))))
       (def prst (bind (m) (pow m 2)))
       (def trdn (bind (n) (pow 2 n))) )) )
+
+#;(pretty-print
+ (defunctionalized '((def dupsztyl (bind (f) (bind-form? f)))
+		     (def djag (bind () (dupsztyl dupsztyl))))))
+"
+(def APPLY
+     (bind ((&CLOSURE 0) f) (APPLY 'bind-form? f)
+           ((&CLOSURE 1)) (APPLY `(&CLOSURE 0) `(&CLOSURE 0))
+	    ;;; + satan's little helpers:
+	    ('+ n m) (+ n m)
+	    ('- n m) (- n m)
+	    ('* n m) (* n m)
+	    ('= n m) (= n m)
+	    ('atom? x) (atom? x)
+	    ('numeral? x) (numeral? x)
+	    ('bind-form? ((quote &CLOSURE) . _)) #t
+	    ('bind-form? _) #f
+	    ('truth-value? x) (truth-value? x)))
+
+(APPLY '(&CLOSURE 1))
+"
+;;; gites.

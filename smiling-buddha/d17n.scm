@@ -99,7 +99,7 @@
 (define (patternized constructor)
   (and-let* ([(_qqt (&CLOSURE id . vars)) constructor]
 	     [patternized-vars (map (lambda ((_unquote var)) var) vars)])
-    `(&CLOSURE ,id . ,patternized-vars)))
+    `('&CLOSURE ,id . ,patternized-vars)))
 
 (define (with-inlined-topenv #;of program #;the expr)
   (let ((defs (map (lambda ((_df v e)) `(,v . ,e)) program)))
@@ -182,23 +182,23 @@
       (def map (bind (f xs) (foldr (bind (h t) `(,(f h) . ,t)) () xs)))])
  ===>
  (def APPLY
-      (bind ((&CLOSURE 0) xs) (APPLY `(&CLOSURE 4) (APPLY `(&CLOSURE 2) 3) xs)
-	    ((&CLOSURE 1) op e ()) e
-	    ((&CLOSURE 1) op e (x . xs)) (APPLY op x (APPLY `(&CLOSURE 1) op e xs))
-	    ((&CLOSURE 2) x) `(&CLOSURE 3 ,x)
-	    ((&CLOSURE 3 x) y) (APPLY '+ x y)
-	    ((&CLOSURE 4) f xs) (APPLY `(&CLOSURE 1) `(&CLOSURE 5 ,f) () xs)
-	    ((&CLOSURE 5 f) h t) `(,(APPLY f h) unquote t)
-	    ;;; + satan's little helpers:
-	    ('+ n m) (+ n m)
-	    ('- n m) (- n m)
-	    ('* n m) (* n m)
-	    ('= n m) (= n m)
-	    ('atom? x) (atom? x)
-	    ('numeral? x) (numeral? x)
-	    ('bind-form? ((quote &CLOSURE) . _)) #t
-	    ('bind-form? _) #f
-	    ('truth-value? x) (truth-value? x)))]
+   (bind (('&CLOSURE 0) xs) (APPLY `(&CLOSURE 4) (APPLY `(&CLOSURE 2) 3) xs)
+	 (('&CLOSURE 1) op e ()) e
+	 (('&CLOSURE 1) op e (x . xs)) (APPLY op x (APPLY `(&CLOSURE 1) op e xs))
+	 (('&CLOSURE 2) x) `(&CLOSURE 3 ,x)
+	 (('&CLOSURE 3 x) y) (APPLY '+ x y)
+	 (('&CLOSURE 4) f xs) (APPLY `(&CLOSURE 1) `(&CLOSURE 5 ,f) () xs)
+	 (('&CLOSURE 5 f) h t) `(,(APPLY f h) unquote t)
+	 ;;; + satan's little helpers:
+	 ('+ n m) (+ n m)
+	 ('- n m) (- n m)
+	 ('* n m) (* n m)
+	 ('= n m) (= n m)
+	 ('atom? x) (atom? x)
+	 ('numeral? x) (numeral? x)
+	 ('bind-form? ((quote &CLOSURE) . _)) #t
+	 ('bind-form? _) #f
+	 ('truth-value? x) (truth-value? x)))]
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -222,8 +222,8 @@
 		     (def djag (bind () (dupsztyl dupsztyl))))))
 "
 (def APPLY
-     (bind ((&CLOSURE 0) f) (APPLY 'bind-form? f)
-           ((&CLOSURE 1)) (APPLY `(&CLOSURE 0) `(&CLOSURE 0))
+     (bind (('&CLOSURE 0) f) (APPLY 'bind-form? f)
+           (('&CLOSURE 1)) (APPLY `(&CLOSURE 0) `(&CLOSURE 0))
 	    ;;; + satan's little helpers:
 	    ('+ n m) (+ n m)
 	    ('- n m) (- n m)
@@ -235,6 +235,6 @@
 	    ('bind-form? _) #f
 	    ('truth-value? x) (truth-value? x)))
 
-(APPLY '(&CLOSURE 1))
+(APPLY '(&CLOSURE 1))  ===> #t
 "
 ;;; gites.

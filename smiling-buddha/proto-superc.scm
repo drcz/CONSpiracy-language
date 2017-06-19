@@ -1,9 +1,8 @@
-(use-modules (grand scheme) (ice-9 pretty-print))
+(use-modules (ice-9 pretty-print)) ;; mhm mhm
 (add-to-load-path (getcwd)) ;; make geiser happy...
 (include-from-path "some-language-stuff.scm")
 
 ;;;; simplifier ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;; take novum, cf meta-match...
 (define (contains-jokers? expr)
   (match expr
     ['&JOKER #t]
@@ -12,13 +11,18 @@
 (e.g. (contains-jokers? '(2 . &JOKER)))
 (e.g. (not (contains-jokers? '(2 . 3))))
 
+(define (un-lifted expr)
+  (match expr
+    [(? constant? c) c]
+    [e `(quote ,e)]))
+
 (define (simplified expr #;wrt metabinding)
   (let simp ((expr expr))
     (match expr
       [(? constant? c) c]
       [(? variable? v)
        (let ([val (lookedup v metabinding)])
-	 (if (contains-jokers? val) v val))] ;; no need to simplify this further
+	 (if (contains-jokers? val) v (un-lifted val)))]
       [('quote _) expr]
       [('quasiquote qq) (match (simplest-qq (map-unquote simp qq))
 			  [('unquote e) e]
@@ -61,27 +65,15 @@
     #;...
     [something something]))
 
-(e.g. (simplified '(if (= x y) `(,x) `(x ,x y ,y)) '([x . (APPLY f x)] [y . 1]))
-      ===> (if (= (APPLY f x) 1) `(,(APPLY f x)) `(x ,(APPLY f x) y 1)))
-;;; no i nie wiem... to już???
 (e.g. (simplified '(APPLY + 2 3) '()) ===> 5) ;; fajnie, nie?
 (e.g. (simplified '(APPLY * 0 x) '([x . x])) ===> 0)
 (e.g. (simplified '(APPLY * x x) '([x . x])) ===> (* x x))
-
-
-;;;; applications-collector ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define (all-applications #;in expr)
-  (match expr
-    [('APPLY . as) `(,expr . ,(append-map all-applications as))]
-    [('quasiquote qq) (append-map-unquote all-applications qq)]
-    [('if p c a) (append (all-applications p)
-			 (all-applications c)
-			 (all-applications a))]
-    [((? primop-symbol?) . as) (append-map all-applications as)]
-    [_ '()]))
-
-#;(map pretty-print
-     (all-applications '(APPLY (APPLY `(0) x y) 23 (+ x y) (APPLY `(1) x))))
+(e.g. (simplified '(if (= x y) `(,x) `(x ,x y ,y)) '([x . 3] [y . 1]))
+      ===> `(x 3 y 1))
+(e.g. (simplified '(if (= x y) `(,x) `(x ,x y ,y)) '([x . 3] [y . 3]))
+      ===> `(3))
+(e.g. (simplified '(if (= x y) `(,x) `(x ,x y ,y)) '([x . &JOKER] [y . 1]))
+      ===> (if (= x 1) `(,x) `(x ,x y 1)))
 
 
 ;;;; meta-matcher ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -99,7 +91,9 @@
 	       [(eq? val '&JOKER) (updated result v mexpr)]
 	       [(or (eq? mexpr '&JOKER) (equal? val mexpr)) result]
 	       [else #f]))]
-      [(p . ps) (and-let* ([(e . es) mexpr]
+      [(p . ps) (and-let* ([(e . es) (if (eq? '&JOKER mexpr)
+					 '(&JOKER . &JOKER)
+					 mexpr)]
 			   [result0 (binding e p result)])
 		  (binding es ps result0))]
       [otherwise `ERROR-SKURWESYN])))
@@ -110,9 +104,10 @@
 (e.g. (matching '(2 &JOKER &JOKER) '(x y x)) ===> ((y . &JOKER) (x . 2)))
 (e.g. (matching '(&JOKER &JOKER 2) '(x y x)) ===> ((x . 2) (y . &JOKER)))
 (e.g. (matching '((2 . &JOKER)) '(a)) ===> ((a . (2 . &JOKER))))
-
+(e.g. (matching '(23 &JOKER) '(n (x . xs))) ===> ((xs . &JOKER) (x . &JOKER) (n . 23)))
 
 ;;;; now finding out node's children... ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 (define (all-applications #;in expr)
   (match expr ;; mind the oder in the first clause -- outer appl is the last one!
     [('APPLY . as) (fold-right append `(,expr) (map all-applications as))]
@@ -136,21 +131,74 @@
 		   (APPLY (quasiquote (1)) x))])
 
 
-;;; now something to compute proper "program-points"...
-;;; ah shit, but we do have to check the innermost APPLY first,
-;;; in case of desicion to inline some things change [especially
-;;; the argument for outer APPLY will not have to be &JOKER].
-;;; so we need to work in cycles -- check innermost APPLYies, compute their
-;;; process branch, in case of non-recursice one inline the result (and
-;;; remove the branch), then come back to the computed body, gather applications
-;;; again, omitting the ones already computer but not inlined, and do so until
-;;; all are "solved" [i.e. each is either inlined, or present in process tree].
-;;; this is nb how previous DERC did operate.
+(define (pp<-application (fn . as) metabinding)
+  (define (metaexpression #;from e)
+    "approximation of information on e wrt metabinding"
+    (match e
+      [(? constant? c) c]
+      [(? variable? v) (lookedup v metabinding)]
+      [('quote e) e]
+      [('quasiquote qq) (let mp-unq ((qq qq))
+			  (match qq
+			    [('unquote e) (metaexpression e)]
+			    [(h . t) `(,(mp-unq h) . ,(mp-unq t))]
+			    [e e]))]
+      [otherwise '&JOKER]))
+  `(,fn . ,(map metaexpression as)))
 
-;;; todo:
-;;; -- computing [meta]arguments (with &JOKERs) for applications
-;;; -- [meta]matching all applicable branches of APPLY with (matching ...),
-;;;    simplilying with (simplified ...) and then processed,
+(e.g.
+ (pp<-application
+  '(APPLY `(&CLOSURE 0 ,y) x (APPLY z y))
+  '([x . (2 . &JOKER)] [y . (3 6 . &JOKER)] [z . (&CLOSURE 3)]))
+ ===> (APPLY (&CLOSURE 0 (3 6 . &JOKER)) (2 . &JOKER) &JOKER))
+
+;;; now we get pretty sketchy...
+
+
+(define example1
+  '(def APPLY
+	(bind (('&CLOSURE 0) xs) (APPLY `(&CLOSURE 4) (APPLY `(&CLOSURE 2) 3) xs)
+	      (('&CLOSURE 1) op e ()) e
+	      (('&CLOSURE 1) op e (x . xs)) (APPLY op x (APPLY `(&CLOSURE 1) op e xs))
+	      (('&CLOSURE 2) x) `(&CLOSURE 3 ,x)
+	      (('&CLOSURE 3 x) y) (APPLY '+ x y)
+	      (('&CLOSURE 4) f xs) (APPLY `(&CLOSURE 1) `(&CLOSURE 5 ,f) () xs)
+	      (('&CLOSURE 5 f) h t) `(,(APPLY f h) unquote t)
+	      ;;; + satan's little helpers:
+	      ('+ n m) (+ n m)
+	      ('- n m) (- n m)
+	      ('* n m) (* n m)
+	      ('= n m) (= n m)
+	      ('atom? x) (atom? x)
+	      ('numeral? x) (numeral? x)
+	      ('bind-form? ((quote &CLOSURE) . _)) #t
+	      ('bind-form? _) #f
+	      ('truth-value? x) (truth-value? x))))
+  
+;;; so atm we assume a program is only 1 def...
+(define (possible-clauses #;consistent-with pp #;in program)
+  (and-let* ([('APPLY . args) pp]
+	     [('def 'APPLY ('bind . clauses)) program])
+    (let p-c ([clauses clauses])
+      (match clauses
+	[() '()]
+	[(pat body . clauses*) #;[pretty-print `(,pat ,(matching args pat))]
+	 (match (matching args pat)
+				 [#f (p-c clauses*)]
+				 [binding `(,pat ,(simplified body binding)
+					    . ,(p-c clauses*))])]))))
+
+(e.g.
+ (possible-clauses '(APPLY (&CLOSURE 1) (&CLOSURE 2) () &JOKER) example1)
+ ===>
+ [(('&CLOSURE 1) op e ()) ()
+  (('&CLOSURE 1) op e (x . xs))  (APPLY '(&CLOSURE 2)
+					x
+					(APPLY `(&CLOSURE 1)
+					       '(&CLOSURE 2)
+					       ()
+					       xs))])
+ 
 ;;; -- a whistle for applications [ignoring that first argument is numeral?]
 ;;; -- building and re-building the process tree using the above...
 ;;; (...)

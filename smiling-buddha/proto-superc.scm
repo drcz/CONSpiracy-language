@@ -66,8 +66,8 @@
     [something something]))
 
 (e.g. (simplified '(APPLY + 2 3) '()) ===> 5) ;; fajnie, nie?
-(e.g. (simplified '(APPLY * 0 x) '([x . x])) ===> 0)
-(e.g. (simplified '(APPLY * x x) '([x . x])) ===> (* x x))
+(e.g. (simplified '(APPLY * 0 x) '([x . &JOKER])) ===> 0)
+(e.g. (simplified '(APPLY * x x) '([x . &JOKER])) ===> (* x x))
 (e.g. (simplified '(if (= x y) `(,x) `(x ,x y ,y)) '([x . 3] [y . 1]))
       ===> `(x 3 y 1))
 (e.g. (simplified '(if (= x y) `(,x) `(x ,x y ,y)) '([x . 3] [y . 3]))
@@ -152,8 +152,8 @@
   '([x . (2 . &JOKER)] [y . (3 6 . &JOKER)] [z . (&CLOSURE 3)]))
  ===> (APPLY (&CLOSURE 0 (3 6 . &JOKER)) (2 . &JOKER) &JOKER))
 
-;;; now we get pretty sketchy...
 
+;;; now we get pretty sketchy...
 
 (define example1
   '(def APPLY
@@ -198,8 +198,57 @@
 					       '(&CLOSURE 2)
 					       ()
 					       xs))])
- 
-;;; -- a whistle for applications [ignoring that first argument is numeral?]
-;;; -- building and re-building the process tree using the above...
+
+
+;;;; whistling and generalising ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(define (whistle? pp1 pp2)
+  "pp1 is homeomorphically embedded in pp2"
+   ;;; TODO: should we have special case e <| &JOKER for any e?
+  (or (equal? pp1 pp2)
+      (match pp1
+	[(? numeral?)
+	 (numeral? pp2)] ;; TODO: loosen a little?
+	[('&CLOSURE (? numeral? n) . rest1) ;; super-special case!!!
+	 (and-let* ([('&CLOSURE (? (is? n)) . rest2) pp2])
+	   (whistle? rest1 rest2))]
+	[(h1 . t1)
+	 (and-let* ([(h2 . t2) pp2])
+	   (or (and (whistle? h1 h2) (whistle? t1 t2))
+	       (whistle? pp1 h2) ;; TODO: sure? tail seems natural but head...
+	       (whistle? pp1 t2)))]
+	[e
+	 (and-let* ([(h . t) pp2])
+	   (or (whistle? e h)
+	       (whistle? e t)))])))
+
+(e.g. (whistle? '(w e) '(q w e))) ;; motivation...
+(e.g. (whistle? '(w e) '((w e) . q))) ;; ...you get the idea.
+(e.g. (whistle? '(q w e) '(q (w w w) e))) ;;; yes.
+
+(e.g. (whistle? '((&CLOSURE 1) () &JOKER 2)
+		'((&CLOSURE 1) () &JOKER 3)))
+
+(e.g. (whistle? '((&CLOSURE 1) (b) &JOKER 2)
+		'((&CLOSURE 1) (a b) &JOKER 2)))
+
+(e.g. (whistle? '((&CLOSURE 1) () &JOKER 2)
+		'((&CLOSURE 1) (a b) &JOKER 5)))
+
+(e.g. (not (whistle? '((&CLOSURE 1) () &JOKER 2)
+		     '((&CLOSURE 2) () &JOKER 2))))
+
+;;; -- most specific generalization for 2 PPs
+;;; -- residualize application and pattern
+;;; ** building and re-building the process tree using the above...
+;;; nb when we reach end of branch that has no applications,
+;;; ["is not getting upwards"] it is [the only] moment when we
+;;; can/should decide to inline, up the last ancestor that has
+;;; applications. well, if we inline this to parent and go further,
+;;; the same rule applies so it will propagate "as far as it's safe".
+;;; only then of course simplify this parent and re-compute
+;;; it's [remaining] applications. so, in short:
+;;; -- inlining.
+
 ;;; (...)
 

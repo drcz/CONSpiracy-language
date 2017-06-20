@@ -175,8 +175,9 @@
 	      ('bind-form? _) #f
 	      ('truth-value? x) (truth-value? x))))
   
-;;; so atm we assume a program is only 1 def...
+;;; nb for now we assume a program is only 1 def, "one big APPLY":
 (define (possible-clauses #;consistent-with pp #;in program)
+  "all clauses from APPLY that can match instances of this pp's metaargs"
   (and-let* ([('APPLY . args) pp]
 	     [('def 'APPLY ('bind . clauses)) program])
     (let p-c ([clauses clauses])
@@ -238,8 +239,38 @@
 (e.g. (not (whistle? '((&CLOSURE 1) () &JOKER 2)
 		     '((&CLOSURE 2) () &JOKER 2))))
 
-;;; -- most specific generalization for 2 PPs
-;;; -- residualize application and pattern
+
+(define (msg pp1 pp2)
+  "most specific generalization for pp1 and pp2"
+  (match `(,pp1 ,pp2) ; hehe.
+    [(e e) e] 
+    [((h1 . t1) (h2 . t2)) `(,(msg h1 h2) . ,(msg t1 t2))]
+    [(_ _) '&JOKER]))
+;;; not sure it it's MOST specific but anyway it's pretty neat...
+
+(e.g. (msg '((&CLOSURE 6) 2 3 (hi there) &JOKER)
+	   '((&CLOSURE 6) 2 5 (there) 23))
+      ===> ((&CLOSURE 6) 2 &JOKER (&JOKER . &JOKER) &JOKER))
+
+(e.g. (msg '(w e) '(q w e)) ===> (&JOKER &JOKER . &JOKER))
+(e.g. (msg '(w e) '((w e) . q)) ===> (&JOKER . &JOKER))
+(e.g. (msg '(q w e) '(q (w w w) e)) ===> (q &JOKER e))
+
+(e.g. (msg '((&CLOSURE 1) () &JOKER 2)
+	   '((&CLOSURE 1) () &JOKER 3))
+       ===> ((&CLOSURE 1) () &JOKER &JOKER))
+
+(e.g. (msg '((&CLOSURE 1) (b) &JOKER 2)
+	   '((&CLOSURE 1) (a b) &JOKER 2))
+       ===> ((&CLOSURE 1) (&JOKER . &JOKER) &JOKER 2))
+
+(e.g. (msg '((&CLOSURE 1) () &JOKER 2)
+	   '((&CLOSURE 1) (a b) &JOKER 5))
+       ===> ((&CLOSURE 1) &JOKER &JOKER &JOKER))
+
+
+
+;;; -- residualize application and pattern ["remove statics"]
 ;;; ** building and re-building the process tree using the above...
 ;;; nb when we reach end of branch that has no applications,
 ;;; ["is not getting upwards"] it is [the only] moment when we

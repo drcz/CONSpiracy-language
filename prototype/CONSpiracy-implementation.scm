@@ -215,13 +215,14 @@
 (define (Eval expr binding defs)
   (match expr    
     [(? constant? c) c]
-    [(? variable? v) (match (lookup v binding)
-		       ['&UNBOUND (Eval (match (lookup v defs)
-					  ['&UNBOUND
-					   (Error `(unbound symbol ,v) defs)]
-					  [expr expr])
-					*initial-env* #;binding ;;<- of course!
-					defs)]
+    [(? variable? v) (match (lookup v (append binding defs))
+		       ['&UNBOUND (Error `(unbound symbol ,v) defs)
+                          #;(Eval (match (lookup v defs)
+                          ['&UNBOUND
+                          (Error `(unbound symbol ,v) defs)]
+                          [expr expr])
+                          *initial-env* ;;binding ;;<- of course!
+                          defs)]
 		       [val val])]
     [('bind . cases) `(&bind ,cases ,binding)]
     [('let bindings e) (Eval (let->lambda bindings e) binding defs)]
@@ -254,7 +255,7 @@
 	 [()
 	  (Error `(no match in ,expr) defs)]
 	 [(pattern body . cases)
-	  (match (bind pattern vals '() binding defs)
+	  (match (bind pattern vals env binding defs)
 	    [#f (try-match cases)]
 	    [binding0 (Eval body (append binding0 env #;binding) defs)])]))]
     [_ (Error `(unknown application form ,expr) defs)]))
@@ -265,15 +266,15 @@
     [(? constant? c) (and (equal? c form) binding)]
     [('quote e) (and (equal? e form) binding)]
     [('? pred v) (let ([val (lookup v binding)])
-		   (if (not (eq? val '&UNBOUND))
-		       (and (Eval `(,pred (quote ,val))
-				  (append binding env)
-				  defs)
-			    binding)
-		       (and (Eval `(,pred (quote ,form))
-				  (append binding env)
-				  defs)
-			    (insert v form binding))))]
+                   (if (not (eq? val '&UNBOUND))
+                       (and (Eval `(,pred (quote ,val))
+                                  (append binding env)
+                                  defs)
+                            binding)
+                       (and (Eval `(,pred (quote ,form))
+                                  (append binding env)
+                                  defs)
+                            (insert v form binding))))]
     [('? pred) (and (Eval `(,pred (quote ,form)) binding defs) binding)]
     ['_ binding]
     [(? variable? v) (let ([val (lookup v binding)])
@@ -292,8 +293,10 @@
 (define (repl out topenv)
   (write out) (newline) (display '>)
   (match (read)
-    [('def s e) (repl `(new shorthand ,s memoized) (update s e topenv))]
+    [('def s e) (repl `(new shorthand ,s memoized)
+                      (update s (Eval e '() topenv) topenv))]
     [('halt) (display "Auf Wiedersehen!") (newline) (exit)]
+    [('&ver) (repl `(version 1000-500-100-900) topenv)]
     [('&topenv) (display-topenv topenv) (repl `(so now you know.) topenv)]
     [('&with-time e) (repl (begin
 			     (start-time-now!)
@@ -303,31 +306,6 @@
 			       (newline)
 			       res))			   
 			   topenv)]
-    [('&with-trace e) (repl (begin
-			      (reset-trace!)
-			      (let ((res (Eval-trace e '() topenv)))
-				(newline)
-				(pretty-print `(A trace for ,e))
-				(pretty-print '-----------------------)
-				(map (lambda (s) (display s) (newline)) (get-trace))
-				(pretty-print '-----------------------)
-				(pretty-print `(Number of steps:
-						       ,(length (get-trace))
-						       ** evals:
-						       ,(length (filter
-								 (lambda (x)
-								   (eq? (car x)
-									'eval))
-								 (get-trace)))
-						       ** applies:
-						       ,(length (filter
-								 (lambda (x)
-								   (eq? (car x)
-									'apply))
-								 (get-trace)))))
-				(newline)
-				res))
-			    topenv)]
     [e (repl (Eval e '() topenv) topenv)]))
 
 (define (display-topenv topenv)
@@ -337,66 +315,10 @@
      (display s) (display " <- ") (display e) (newline)
      (display-topenv remaining)]))
 
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; 5. ``Measure forms'' ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; pff.
 
-;; 5a. memory of evaluation ...................................................
-(define *trace* '())
-(define (reset-trace!) (set! *trace* '()))
-(define (get-trace) (reverse *trace*))
-
-(define (Eval-trace expr binding defs)  
-  (set! *trace* `((eval ,expr ,binding _) . ,*trace*)) ;;; sorry! :P
-  (match expr    
-    [(? constant? c) c]
-    [(? variable? v) (match (lookup v binding)
-		       ['&UNBOUND (Eval-trace (match (lookup v defs)
-						['&UNBOUND
-						 (Error `(unbound symbol ,v) defs)]
-						[expr expr])
-					      *initial-env* #;binding
-					      defs)]
-		       [val val])]
-    [('bind . cases) `(&bind ,cases ,binding)]
-    [('let bindings e) (Eval-trace (let->lambda bindings e) binding defs)]
-    [('quote e) e]
-    [('quasiquote e) (let qq-eval ((exp e))
-		       (match exp
-			 [('unquote e) (Eval-trace e binding defs)]
-			 [(h . t) `(,(qq-eval h) . ,(qq-eval t))]
-			 [e e]))]
-    [('if pre con alt) (if (Eval-trace pre binding defs)
-			   (Eval-trace con binding defs)
-			   (Eval-trace alt binding defs))]
-    [('and . es) (Eval-trace (and->ifs es) binding defs)]
-    [('or . es) (Eval-trace (or->ifs es) binding defs)]
-    [('not e) (Eval-trace `(if ,e #f #t) binding defs)]
-    [(rator . (? variable? rands))
-     (Apply-trace (Eval-trace rator binding defs)
-		  (Eval-trace rands binding defs)
-		  defs expr)]
-    [(rator . rands)
-     (Apply-trace (Eval-trace rator binding defs)
-		  (map (lambda (e) (Eval-trace e binding defs)) rands)
-		  defs expr)]
-    [e (Error `(error evaluating ,e) defs)]))
-
-(define (Apply-trace rator rands defs #;and-for-debug: expr)
-  (set! *trace* `((apply ,expr => (,rator . ,rands)) . ,*trace*)) ;;; sorry...
-  (match `(,rator . ,rands)
-    [((? primitive? p) . rands) #;todo:typechecking-here? (apply p rands)]
-    [(('&bind cases env) . vals)
-     (let try-match ((cases cases))
-       (match cases
-	 [()
-	  (Error `(no match in ,expr) defs)]
-	 [(pattern body . cases)
-	  (match (bind pattern vals '() defs)
-	    [#f (try-match cases)]
-	    [binding (Eval-trace body (append binding env) defs)])]))]
-    [_ (Error `(unknown application form ,expr) defs)]))
-
-;; 5b. time measurements ......................................................
 (define (current-time/microseconds)
   (let* (((seconds . microseconds) (gettimeofday)))
     (+ (* 1000000 seconds) microseconds)))
@@ -409,3 +331,4 @@
 ;; appendix: for now cf conspiracy.cpr + example-*.scm files [...]
 
 ;; -- the end -- ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+

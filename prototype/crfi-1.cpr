@@ -30,6 +30,7 @@
 (def append (bind (xs ys) (foldr cons ys xs)))
 (def map (bind (f xs) (foldr (bind (h t) `(,(f h) . ,t)) () xs)))
 (def length (bind (xs) (foldr (bind (_ t) (+ 1 t)) 0 xs)))
+
 (def filter (bind (p? xs) (foldr (bind ((? p? h) t) `(,h . ,t) (_ t) t) () xs)))
 
 (def any? (bind (p? xs) (foldr (bind (h t) (or (p? h) t)) #f xs)))
@@ -57,6 +58,10 @@
 
 ;;; tbc...
 
-		  
-     
+;;; huh, somehow lost these (group-theory uses them):		  
 						 
+(def append-map (bind (f xs) (foldr (bind (h t) (append (f h) t)) () xs)))
+
+(def delete (bind (_ ()) ()
+                  (x (x . xs)) xs
+                  (x (y . xs)) `(,y . ,(delete x xs))))

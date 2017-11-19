@@ -2,13 +2,11 @@
 --no-auto-compile -s
 !#
 
-(include "conspiracy-semantics.scm")
-
-;;; ugly as fuck but pff.
+(use-modules (ice-9 pretty-print)) ;; for thms
+(include "conspiracy-semantics.scm") ;; pff.
 
 (define EVAL (evaluator (append (default-initial-environment)
                                 '(#;anything-you'd-like))))
-
 
 (define (repl output defs thms)
   (let ([ERROR (lambda (msg) (repl `(ERROR: . ,msg) defs thms))])
@@ -59,10 +57,15 @@
       [_ (ERROR '(syntax error))] )))
 
 
+(define (fatal-error frm)
+  (pretty-print `(FATAL ERROR: initial compendium failed on ,frm))
+  (pretty-print '(exiting NOW!))
+  (exit))
+
 (define *initial-compendium*
   (map (lambda (definition)
          (and-let* ([('def id form) definition])
-           `[,id . ,(value form '() (critical-error form))]))
+           `[,id . ,(EVAL form '() (fatal-error form))]))
        '[ #;place-your-initial-compendium-here ]))
 
 (define *initial-theorems* '()) ;; everything theorem-wise is just a placeholder...

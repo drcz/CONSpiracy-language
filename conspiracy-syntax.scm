@@ -7,7 +7,7 @@
 (define ((list-of p?) xs) (and (list? xs) (every p? xs)))
 
 
-(define numeral? number?) ;; disgusting lies anyway TODO: maybe integers only?
+(define numeral? integer?) ;; disgusting lies anyway.
 (define truth-value? boolean?) ;;; TODO sure?
 
 (define (expression? e)
@@ -70,8 +70,7 @@
 
 
 (define (phi-form? x)
-  (or #;(and-let* ([('bind (? pattern?) (? form?)) x])) ;; ...
-      (and-let* ([('phi [(? pattern?) (? form?)] ...) x]))))
+  (and-let* ([('phi [(? pattern?) (? form?)] ...) x])))
 
 (define (let-form? x)
   (and-let* ([('let [(? pattern?) (? form?)] ... (? form?)) x])))
@@ -108,8 +107,6 @@
 [e.g. (application? '(f x))]
 [e.g. (application? '(f x y z))]
 
-
-;[e.g. (phi-form? '(phi (x) (* x x)))]
 
 [e.g. (phi-form? '(phi [(()       ys) ys]
                        [((x . xs) ys) `(,x . ,(cat xs ys))]))]
@@ -165,11 +162,6 @@
 
 (define (desugared form)
   (match form
-
-    ;;; this one is fucked up as it's ambiguous
-    #;[('phi (? pattern? p) (? form? f*))
-     `(phi [,p ,(desugared f*)])]
-
     ;;; and/or/not are just sugar for ifs (TODO: for now?)
     [('and . fs*)
      (fold-right (lambda (f* fs) (let ([f (desugared f*)])
@@ -182,7 +174,7 @@
                  #f
                  fs*)]
     [('not f*)
-     `(if ,(desugared f*) #t #f)]
+     `(if ,(desugared f*) #f #t)]
 
     ;;; let's are just sugar for nested phi-forms (TODO: for now?)
     [('let bnds* f*)
@@ -192,7 +184,8 @@
     
     ;;; propagate desugaring into subforms...
     [('phi . cases)
-     `(phi . ,(map (lambda ((p f*)) `(,p ,(desugared f*))) cases))]
+     `(phi . ,(map (lambda ((p* f*)) `(,(desugared-pattern p*)
+                                  ,(desugared f*))) cases))]
 
     [('if p* c* a*)
      `(if ,(desugared p*) ,(desugared c*) ,(desugared a*))]
@@ -210,8 +203,16 @@
     ;;; gucci.
     [_ form]))
 
+;;; because of guard expressions, patterns need to get desugared as well!
+(define (desugared-pattern pattern)
+  (match pattern
+    [('? (? form? f*)) `(? ,(desugared f*))]
+    [('? (? form? f* id)) `(? ,(desugared f*) id)]
+    [(h . t) `(,(desugared-pattern h) . ,(desugared-pattern t))]
+    [_ pattern]))
 
-;[e.g. (desugared '(bind (x) (* x x))) ===> (bind [(x) (* x x)])]
+
+;;;;;;;;;;;;;;;;;;
 [e.g. (desugared '(phi [(x) (* x x)])) ===> (phi [(x) (* x x)])]
 
 [e.g. (desugared '(phi [(x) (* x x)]
@@ -225,4 +226,4 @@
       ===> `(q w e (not important)
                ,[(phi [((y . ys)) [(phi [(x) (if a (if b c #f) #f)]) (f x)]]) x])]
 
-;;; TODO unit tests for desugared...
+;;; TODO unit tests for desugared alone perhaps?

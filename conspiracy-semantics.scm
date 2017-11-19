@@ -177,6 +177,8 @@
         [('&strlen (? string? s)) (string-length s)]
         [('&strlen . _) (error `(&strlen expects 1 string argument))]
 
+        [('&display e) (begin (write e) (newline) e)] ;;; super-dirty ;)
+
         [_ (error `(unrecognized primitive application ,app))]))
 
     ;;; ...and finally:

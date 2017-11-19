@@ -2,7 +2,7 @@
 --no-auto-compile -s
 !#
 
-(use-modules (ice-9 pretty-print)) ;; for thms
+(use-modules (ice-9 pretty-print)) ;; for "longer" thms
 (include "conspiracy-semantics.scm") ;; pff.
 
 (define EVAL (evaluator (append (default-initial-environment)

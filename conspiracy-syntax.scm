@@ -26,7 +26,8 @@
 (define (primop? x) (member? x '(&atom? &str? &num? &tv? &closure?
                                  &eq? 
                                  &lt? &add &mul &sub &div &mod
-                                 &strcat &substr &strlen)))
+                                 &strcat &substr &strlen
+                                 &display)))
 
 
 (define (constant? x)
@@ -97,7 +98,8 @@
 
 (define (application? x)
   (and (pair? x)
-       (not (constant? (first x)))
+       (or (primop? (first x)) ;; TODO: sure?
+           (not (constant? (first x))))
        (or (form? (cdr x))
            ((list-of form?) x))))
 
@@ -227,3 +229,4 @@
                ,[(phi [((y . ys)) [(phi [(x) (if a (if b c #f) #f)]) (f x)]]) x])]
 
 ;;; TODO unit tests for desugared alone perhaps?
+

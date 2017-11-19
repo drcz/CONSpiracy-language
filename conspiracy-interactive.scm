@@ -8,15 +8,18 @@
 (define EVAL (evaluator (append (default-initial-environment)
                                 '(#;anything-you'd-like))))
 
+
 (define (repl output defs thms)
   (let ([ERROR (lambda (msg) (repl `(ERROR: . ,msg) defs thms))])
 
     (write output) (newline) (display '>)
 
-    (match (read)
+    (match (catch #t (lambda () (read)) (const #(#;just-to-cause-syntax-error-XD)))
 
       [('def (? identifier? id) (? form? frm))
-       (repl `(new definition ,id)
+       (repl (if (not (eq? (lookup defs id) '&UNBOUND))
+                 `(WARNING: redefinition for ,id)
+                 `(new definition for ,id))
              (extended defs id (EVAL frm defs ERROR))
              thms)]
       [('def (? identifier?) f) (ERROR `(incorrect form ,f))]

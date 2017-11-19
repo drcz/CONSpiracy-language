@@ -46,7 +46,7 @@
 (define (pattern? x)
   (match x
     ['_ #t]
-    [() #t]
+    [(? constant?) #t]
     [(? identifier?) #t]
     [('? (? form?)) #t]
     [('? (? form?) (? identifier?)) #t]
@@ -67,7 +67,6 @@
       (if-form? x)
       (and-form? x) (or-form? x) (not-form? x)
       (application? x)))
-
 
 (define (phi-form? x)
   (and-let* ([('phi [(? pattern?) (? form?)] ...) x])))
@@ -183,9 +182,10 @@
                  bnds*)]
     
     ;;; propagate desugaring into subforms...
-    [('phi . cases)
-     `(phi . ,(map (lambda ((p* f*)) `(,(desugared-pattern p*)
-                                  ,(desugared f*))) cases))]
+    [(? phi-form?)
+     (let* ([('phi . cases) form])
+       `(phi . ,(map (lambda ((p* f*)) `(,(desugared-pattern p*)
+                                    ,(desugared f*))) cases)))]
 
     [('if p* c* a*)
      `(if ,(desugared p*) ,(desugared c*) ,(desugared a*))]

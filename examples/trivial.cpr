@@ -1,0 +1,72 @@
+;; just some introductory stuff. paste each line into conspiracy's repl.
+
+;;; TODO: add some descriptions to guide CONSpiracy neophyte.
+
+(e.g. (+ 2 3) ===> 5)
+(e.g. (- (* 7 8) (+ 12 2)) ===> 42)
+
+(e.g. ((phi [(x) (* x x)]) (+ 2 3)) ===> 25)
+(e.g. ((phi [x (* x x)]) . 5) ===> 25)
+
+(e.g. (closure? (phi [(x) (* x x)])) ===> #t)
+
+(def square (phi [(x) (* x x)]))
+(e.g. (square 3) ===> 9)
+(e.g. (square (+ 2 3)) ===> 25)
+
+(e.g. (closure? square) ===> #t)
+
+(e.g. (= (+ 2 3) 5) ===> #t)
+(e.g. (= 23 42) ===> #f)
+
+(e.g. 'whatever ===> whatever)
+(e.g. '(really whatever) ===> (really whatever))
+
+(e.g. `(2 + 3 is ,(+ 2 3)) ===> (2 + 3 is 5))
+
+(e.g. (if (= 2 3) '(incosistence, panic!) '(all good)) ===> (all good))
+
+(def ! (phi [(n) (if (= n 0) 1 (* n (! (- n 1))))]))
+(e.g. (! 0) ===> 1)
+(e.g. (! 3) ===> 6)
+
+(def concat (phi [(() ys) ys]
+                 [((x . xs) ys) `(,x . ,(concat xs ys))]))
+
+(e.g. (concat () '(just me)) ===> (just me))
+(e.g. (concat '(a b c) '(x y z)) ===> (a b c x y z))
+
+(thm. (= (concat (concat xs ys) zs) (concat xs (concat ys zs)))) ;; he_he.
+
+
+(def foldr (phi [(op e ()) e]
+                [(op e (x . xs)) (op x (foldr op e xs))]))
+
+(def sum (phi [(xs) (foldr + 0 xs)]))
+(e.g. (sum '(1 2 3 4 5)) ===> 15)
+
+(def product (phi [(xs) (foldr * 1 xs)]))
+(e.g. (product '(1 2 3 4 5)) ===> 120)
+
+(def concat (phi [(xs ys) (foldr (phi [(h t) `(,h . ,t)]) ys xs)]))
+(e.g. (concat '(this one) '(works too)) ===> (this one works too))
+
+(def map (phi [(f xs) (foldr (phi [(h t) `(,(f h) . ,t)]) () xs)]))
+(e.g. (map square '(1 2 3 4 5)) ===> (1 4 9 16 25))
+
+(def sum-of-squares (phi [(xs) (sum (map square xs))]))
+(e.g. (sum-of-squares '(1 2 3 4 5)) ===> 55)
+
+(def filter (phi [(pred? xs) (foldr (phi [(h t) (if (pred? h) `(,h . ,t) t)])
+                                    () xs)]))
+
+(e.g. (filter (phi [(x) (< x 0)]) '(0 1 -3 7 -5 23)) ===> (-3 -5))
+
+(def filter (phi [(pred? xs)
+                  (foldr (phi [((? pred? h) t) `(,h . ,t)]
+                              [(_ t) t])
+                         () xs)]))
+
+(e.g. (filter (phi [(x) (< x 0)]) '(0 1 -3 7 -5 23)) ===> (-3 -5))
+
+;;; TBC...

@@ -94,7 +94,7 @@
 
           ['_ binding]
 
-          [() (and (null? form) binding)]
+          [(? constant?) (and (equal? form pattern) binding)]
           [('quote e) (and (equal? e form) binding)]
           
           [(? identifier? id)
@@ -179,8 +179,8 @@
 
         [_ (error `(unrecognized primitive application ,app))]))
 
-  ;;; ...and finally:
-  (value (desugared form) initial-environment)))
+    ;;; ...and finally:
+    (value (desugared form) initial-environment)))
 
 
 (define (default-initial-environment)

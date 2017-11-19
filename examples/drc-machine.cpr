@@ -1,0 +1,67 @@
+;;; this is a simple version of DRC machine from my eng. thesis
+;;; (cf https://github.com/drcz/drczlang)
+
+(def name (phi [(k v D) `([,k . ,v] . ,D)]))
+
+(def forget (phi [(k ()) ()]
+               [(k ([k . _] . D)) D]
+               [(k (kv . D)) `(,kv . ,(forget k D))]))
+
+(def lookup (phi [(k ()) ()]
+               [(k ([k . v] . _)) v]
+               [(k (_ . D)) (lookup k D)]))
+
+(def concat (phi [(() ys) ys]
+               [((x . xs) ys) `(,x . ,(concat xs ys))]))
+
+(def step
+     (phi [(rD rR (['CONST e] . rC)) `(,rD (,e . ,rR) ,rC)]
+        [(rD rR (['PROC p]  . rC)) `(,rD (,p . ,rR) ,rC)]
+
+        [(rD (e . rR) (['NAME n]   . rC)) `(,(name n e rD) ,rR ,rC)]
+        [(rD rR       (['FORGET n] . rC)) `(,(forget n rD) ,rR ,rC)]
+        [(rD rR       (['LOOKUP n] . rC)) `(,rD (,(lookup n rD) . ,rR) ,rC)]
+
+        [(rD (() . rR) (['SELECT p p*] . rC)) `(,rD ,rR ,(concat p* rC))]
+        [(rD (_ . rR)  (['SELECT p p*] . rC)) `(,rD ,rR ,(concat p rC))]
+        [(rD (p . rR)  (['APPLY]       . rC)) `(,rD ,rR ,(concat p rC))]
+        
+        [(rD ((h . t) . rR) (['CAR] . rC))  `(,rD (,h . ,rR)        ,rC)]
+        [(rD ((h . t) . rR) (['CDR] . rC))  `(,rD (,t . ,rR)        ,rC)]
+        [(rD (h t . rR)     (['CONS] . rC)) `(,rD ((,h . ,t) . ,rR) ,rC)]
+        ;;; feel free to add more operators :)
+        [(rD (e e . rR)     (['EQ?] . rC)) `(,rD (T . ,rR)    ,rC)]
+        [(rD (_ _ . rR)     (['EQ?] . rC)) `(,rD (() . ,rR)   ,rC)]
+        [(rD ((_ . _) . rR) (['ATOM?] . rC)) `(,rD (() . ,rR) ,rC)]
+        [(rD (_ . rR)       (['ATOM?] . rC)) `(,rD (T . ,rR)  ,rC)]
+
+        [_ `(() ((! THIS MACHINE IS BROKEN NOW !)) ())]))
+
+(def step* (phi [((_ (e . _) ())) e]
+              [(state) (step* (step . state))]))
+
+(def run (phi [(program inputs) (step* `(() ,inputs ,program))]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(def example-concat
+     '([PROC ([NAME xs]
+              [NAME ys]
+              [LOOKUP xs]
+              [CONST ()]
+              [EQ?]
+              [SELECT ([LOOKUP ys])
+                      ([LOOKUP ys]
+                       [LOOKUP xs]
+                       [CDR]
+                       [LOOKUP concat]
+                       [APPLY]
+                       [LOOKUP xs]
+                       [CAR]
+                       [CONS])]
+              [FORGET ys]
+              [FORGET xs])]
+       [NAME concat]
+       [LOOKUP concat]
+       [APPLY]))
+
+(e.g. (run example-concat '((q w e) (e r t))) ===> (q w e e r t))

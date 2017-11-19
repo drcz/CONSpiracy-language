@@ -10,7 +10,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 
-(def error (phi [(msg) msg])) ;;; does not make much sense but oh well.
+(def error (phi [(msg) (&display msg)])) ;;; does not make much sense but oh well.
 
 ;;; primitive operations: ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def car (phi [((h . t)) h]
@@ -28,8 +28,7 @@
                [_ '(ATOM REQUIREZ ONE ARGUMENT)]))
 
 (def eq (phi [((? atom? x) x) 'T]
-             [((? atom? x) (? atom? y)) ()]
-             [(x y) (error '(EQ WORKZ ON ATOMZ ONLY))]
+             [(_ _) ()]
              [_ (error '(EQ REQUIREZ TWO ARGUMENTZ))]))
 
 ;;; associacion lists ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

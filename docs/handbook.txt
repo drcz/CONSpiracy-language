@@ -1,0 +1,3 @@
+Of course it was a joke, there's no handbook!
+
+cf examples/trivial.cpr

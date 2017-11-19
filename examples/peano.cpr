@@ -1,0 +1,63 @@
+;;; the only correct way to implement arithmetical computations
+;;; on a digital computer.
+
+(def add (phi [(('Z)     m)  m]
+            [(('S . n) m) `(S . ,(add n m))]))
+
+(def mul (phi [(('Z)     m) '(Z)]
+            [(('S . n) m) (add m (mul n m))]))
+
+(def equal? (phi [(('Z)     ('Z)) #t]
+               [(('S . n) ('S . m)) (equal? n m)]
+               [_ #f]))
+
+[e.g. (add '(S Z) '(S Z)) ===> (S S Z)]
+[e.g. (mul '(S S Z) '(S S Z)) ===> (S S S S Z)]
+
+;;; Principia Mathematica, Volume II (1st edition) prop. 110.643 [page 86]
+(thm. (equal? (add '(S Z) '(S Z)) '(S S Z)))
+
+
+(def factorial (phi [(('Z)) '(S Z)]
+                  [(('S . n)) (mul `(S . ,n) (factorial n))]))
+
+[e.g. (factorial '(S S S Z)) ===> (S S S S S S Z)]
+
+(def ackermann
+     (phi [(('Z) n) `(S . ,n)]
+        [(('S . m) '(Z)) (ackermann m '(S Z))]
+        [(('S . m) ('S . n)) (ackermann m (ackermann `(S . ,m) n))]))
+
+[e.g. (ackermann '(S S Z) '(S S S Z)) ===> (S S S S S S S S S Z)]
+
+;;; in case you're cold and lack a decent radiator, just run
+;;; (ackermann '(S S S S Z) '(S S S S Z)).
+
+;;; ok, let's do some more (Sigma-0-0) recursive shit.
+(def leq? (phi [(('Z) _) #t]
+             [(('S . n) ('S . m)) (leq? n m)]
+             [_ #f]))
+
+;;; formulas with bounded quantification are PR, hehe
+(def exists-below (phi [(('Z) pred?) #f]
+                     [(('S . n) pred?) (or (pred? n)
+                                           (exists-below n pred?))]))
+
+(def proper-divisor? (phi [(m n)
+                         (and (leq? m n)
+                              (exists-below n (phi [(x) (equal? (mul x m) n)])))]))
+
+(def prime? (phi [(n)
+                (and (not (leq? n '(S Z)))
+                     (not (exists-below n (phi [(x) (proper-divisor? x n)]))))]))
+
+[e.g. (prime? '(S S Z)) ===> #t]
+[e.g. (prime? '(S S S S Z)) ===> #f]
+
+;;; it takes quite some time to check that:
+[e.g. (prime? '(S S S S S S S S S S S S S Z)) ===> #t]
+
+;;; so if you want to warm your room just a bit, you can try the following one
+[e.g. (prime? (add '(S Z) (factorial '(S S S S S Z)))) ===> #f]
+
+;;; etc...

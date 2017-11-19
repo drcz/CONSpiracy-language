@@ -1,0 +1,31 @@
+;;; actually i'm not sure if this stuff works out of the box, treat it as general guidelines.
+
+;;; mandatory, prolly you already have it set:
+(setq show-paren-delay 0
+      show-paren-style 'parenthesis)
+(show-paren-mode +1)
+
+;;; schemish enough, no?
+(add-to-list 'auto-mode-alist '("\\.cpr\\'" . scheme-mode))
+
+;;; if you'd like to... you know... have it under a keystroke...
+(set-variable 'scheme-program-name "<full path to your CONSpiracy directory>/conspiracy-interactive.scm")
+(global-set-key [(f6)] 'run-scheme)
+
+;;; for heavy-parenthesized languages it's also nice to use rainbow-delimiters -- and
+;;; if you're not a visual person, perhaps you'd like to impress your colleagues.
+(require 'rainbow-delimiters)
+(require 'rainbow-mode)
+
+(add-hook 'scheme-mode-hook 'rainbow-delimiters-mode)
+
+;;; to impress your colleagues even more...
+(require 'pretty-symbols)
+
+(defun my-pretty-phi ()
+  "make some word or string show as pretty Unicode symbols"
+  (setq prettify-symbols-alist
+        '( ("phi" . 966) )))
+
+(add-hook 'scheme-mode-hook 'my-pretty-phi)
+(global-prettify-symbols-mode 1)

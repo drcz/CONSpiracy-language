@@ -4,9 +4,7 @@
 
 (include "conspiracy-semantics.scm") ;; pff.
 
-(define EVAL (evaluator (append (default-initial-environment)
-                                '(#;anything-you'd-like))))
-
+(define EVAL (evaluator))
 
 (define (repl output defs thms)
   (let ([ERROR (lambda (msg) (repl `(ERROR: . ,msg) defs thms))])
@@ -65,10 +63,12 @@
   (exit))
 
 (define *initial-compendium*
-  (map (lambda (definition)
-         (and-let* ([('def id form) definition])
-           `[,id . ,(EVAL form '() (fatal-error form))]))
-       '[ #;place-your-initial-compendium-here ]))
+  (append
+   (map (lambda (definition)
+          (and-let* ([('def id form) definition])
+            `[,id . ,(EVAL form '() (fatal-error form))]))
+        '[ #;place-your-initial-compendium-here ])
+   (default-initial-environment)))
 
 (define *initial-theorems* '()) ;; everything theorem-wise is just a placeholder...
 

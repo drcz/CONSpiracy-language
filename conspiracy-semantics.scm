@@ -95,164 +95,166 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; the evaluator.
 
-(define (evaluator #;with initial-environment)
-  (lambda (#;of form #;in-the-context-of defined #;on-error-applying error)
-    (define (value form binding)
-      (match form ;;; nb we assert desugared form here.
+(define ((evaluator) #;of form
+                     #;in-the-context-of defined 
+                     #;on-error-applying error)
 
-        [(? constant?) form]
-        [(? closure?) form]
+  (define (value form binding)
+    (match form ;;; nb we assert desugared form here.
 
-        [(? identifier? id) (match (lookup (append binding defined) id)
-                              ['&UNBOUND (error `(unbound identifier ,id))]
-                              [expr expr])]
+      [(? constant?) form]
+      [(? closure?) form]
 
-        [('phi . cases) (let* ([vars-to-enclose (free-vars form)]
-                             [binding* (filter (lambda ((k . _))
-                                                 (member? k vars-to-enclose))
-                                               binding)])
-                        `(&CLOSURE ,cases ,binding*))]
+      [(? identifier? id) (match (lookup (append binding defined) id)
+                            ['&UNBOUND (error `(unbound identifier ,id))]
+                            [expr expr])]
 
-        [('quote e) e]
+      [('phi . cases) (let* ([vars-to-enclose (free-vars form)]
+                           [binding* (filter (lambda ((k . _))
+                                               (member? k vars-to-enclose))
+                                             binding)])
+                      `(&CLOSURE ,cases ,binding*))]
 
-        [('quasiquote qqe) (let val-qq ([expr qqe])
-                             (match expr
-                               [('unquote e) (value e binding)]
-                               [(h . t) `(,(val-qq h) . ,(val-qq t))]
-                               [_ expr]))]
+      [('quote e) e]
 
-        [('if p c a) (if (value p binding)
-                         (value c binding)
-                         (value a binding))]
+      [('quasiquote qqe) (let val-qq ([expr qqe])
+                           (match expr
+                             [('unquote e) (value e binding)]
+                             [(h . t) `(,(val-qq h) . ,(val-qq t))]
+                             [_ expr]))]
 
-        [(rator . rands) (application (value rator binding)
-                                      (if (list? rands)
-                                          (map (lambda (r) (value r binding)) rands)
-                                          (value rands binding))
-                                      binding)]
+      [('if p c a) (if (value p binding)
+                       (value c binding)
+                       (value a binding))]
 
-        [_ (error `(unrecognized form ,form))]))
+      [(rator . rands) (application (value rator binding)
+                                    (if (list? rands)
+                                        (map (lambda (r) (value r binding)) rands)
+                                        (value rands binding))
+                                    binding)]
 
-
-    (define (application rator rands local-binding)
-      (match rator
-
-        [(? primop?)
-         (primop-application `(,rator . ,rands))]
-
-        [('&CLOSURE cases enclosed-binding)
-         (let ([match-bindings (append enclosed-binding local-binding)])
-           (let first-matching ([cases cases])
-             (match cases
-               [()
-                (error `(no matching in ,rator for ,rands))]
-               [([pattern form] . cases*)
-                (match (matching pattern rands match-bindings)
-                  [#f (first-matching cases*)]
-                  [binding (value form
-                                  (append binding enclosed-binding))])]
-               [_ (error `(unrecognized closure cases ,cases))])))]
-
-        [_ (error `(unrecognized application ,rator))]))
+      [_ (error `(unrecognized form ,form))]))
 
 
-    (define (matching pattern form #;wrt match-bindings)
-      (let matching ([pattern pattern]
-                     [form form]
-                     [binding '()])
-        (match pattern
+  (define (application rator rands local-binding)
+    (match rator
 
-          ['_ binding]
+      [(? primop?)
+       (primop-application `(,rator . ,rands))]
 
-          [(? constant?) (and (equal? form pattern) binding)]
-          [('quote e) (and (equal? e form) binding)]
-          
-          [(? identifier? id)
-           (match (lookup binding id)
-             ['&UNBOUND (extended binding id form)]
-             [form* (and (equal? form form*) binding)])]
-          
-          [('? guard) ;;; TODO appending binding below i'm not sure of...
-           (and (value `(,guard ',form) (append binding match-bindings))
-                binding)]
-          
-          [('? guard (? identifier? id)) ;; TODO as above.
-           (match (lookup binding id)
-             ['&UNBOUND
-              (and (value `(,guard ',form) (append binding match-bindings))
-                   (extended binding id form))]
-             [form*
-              (and (equal? form form*)
-                   (value `(,guard ',form) (append binding match-bindings))
-                   binding)])]
-          
-          [(p . ps) (and-let* ([(f . fs) form]
-                               [binding* (matching p f binding)])
-                      (matching ps fs binding*))]
+      [('&CLOSURE cases enclosed-binding)
+       (let ([match-bindings (append enclosed-binding local-binding)])
+         (let first-matching ([cases cases])
+           (match cases
+             [()
+              (error `(no matching in ,rator for ,rands))]
+             [([pattern form] . cases*)
+              (match (matching pattern rands match-bindings)
+                [#f (first-matching cases*)]
+                [binding (value form
+                                (append binding enclosed-binding))])]
+             [_ (error `(unrecognized closure cases ,cases))])))]
 
-          [_ (error `(unrecognized pattern ,pattern))])))
+      [_ (error `(unrecognized application ,rator))]))
 
 
-    (define (primop-application app)
-      (match app
+  (define (matching pattern form #;wrt match-bindings)
+    (let matching ([pattern pattern]
+                   [form form]
+                   [binding '()])
+      (match pattern
 
-        [('&atom? x) (not (pair? x))]
-        [('&atom? . _) (error `(&atom? expects 1 argument))]
+        ['_ binding]
 
-        [('&str? x) (string? x)]
-        [('&str? . _) (error `(&str? expects 1 argument))]
+        [(? constant?) (and (equal? form pattern) binding)]
+        [('quote e) (and (equal? e form) binding)]
+        
+        [(? identifier? id)
+         (match (lookup binding id)
+           ['&UNBOUND (extended binding id form)]
+           [form* (and (equal? form form*) binding)])]
+        
+        [('? guard) ;;; TODO appending binding below i'm not sure of...
+         (and (value `(,guard ',form) (append binding match-bindings))
+              binding)]
+        
+        [('? guard (? identifier? id)) ;; TODO as above.
+         (match (lookup binding id)
+           ['&UNBOUND
+            (and (value `(,guard ',form) (append binding match-bindings))
+                 (extended binding id form))]
+           [form*
+            (and (equal? form form*)
+                 (value `(,guard ',form) (append binding match-bindings))
+                 binding)])]
+        
+        [(p . ps) (and-let* ([(f . fs) form]
+                             [binding* (matching p f binding)])
+                    (matching ps fs binding*))]
 
-        [('&num? x) (numeral? x)]
-        [('&num? . _) (error `(&num? expects 1 argument))]
+        [_ (error `(unrecognized pattern ,pattern))])))
 
-        [('&tv? x) (truth-value? x)]
-        [('&tv? . _) (error `(&tv? expects 1 argument))]
 
-        [('&closure? x) (closure? x)]
-        [('&closure? . _) (error `(&closure? expects 1 argument))]
+  (define (primop-application app)
+    (match app
 
-        [('&eq? x x) #t]
-        [('&eq? _ _) #f]
-        [('&eq? . _) (error `(&eq? expects 2 arguments))]
+      [('&atom? x) (not (pair? x))]
+      [('&atom? . _) (error `(&atom? expects 1 argument))]
 
-        [('&lt? (? numeral? n) (? numeral? m)) (< n m)]
-        [('&lt? . _) (error `(&lt? expects 2 numeral arguments))]
+      [('&str? x) (string? x)]
+      [('&str? . _) (error `(&str? expects 1 argument))]
 
-        [('&add (? numeral? n) (? numeral? m)) (+ n m)]
-        [('&add . _) (error `(&add expects 2 numeral arguments))]
+      [('&num? x) (numeral? x)]
+      [('&num? . _) (error `(&num? expects 1 argument))]
 
-        [('&mul (? numeral? n) (? numeral? m)) (* n m)]
-        [('&mul . _) (error `(&mul expects 2 numeral arguments))]
+      [('&tv? x) (truth-value? x)]
+      [('&tv? . _) (error `(&tv? expects 1 argument))]
 
-        [('&sub (? numeral? n) (? numeral? m)) (- n m)]
-        [('&sub . _) (error `(&sub expects 2 numeral arguments))]
+      [('&closure? x) (closure? x)]
+      [('&closure? . _) (error `(&closure? expects 1 argument))]
 
-        [('&div (? numeral? n) 0) (error `(division by 0 is meaningess))]
-        [('&div (? numeral? n) (? numeral? m)) (quotient n m)]
-        [('&div . _) (error `(&div expects 2 numeral arguments))]
+      [('&eq? x x) #t]
+      [('&eq? _ _) #f]
+      [('&eq? . _) (error `(&eq? expects 2 arguments))]
 
-        [('&mod (? numeral? n) (? numeral? m)) (modulo n m)]
-        [('&mod . _) (error `(&mod expects 2 numeral arguments))]
+      [('&lt? (? numeral? n) (? numeral? m)) (< n m)]
+      [('&lt? . _) (error `(&lt? expects 2 numeral arguments))]
 
-        [('&strcat (? string? s) (? string? s*)) (string-append s s*)]
-        [('&strcat . _) (error `(&strcat expects 2 string arguments))]
+      [('&add (? numeral? n) (? numeral? m)) (+ n m)]
+      [('&add . _) (error `(&add expects 2 numeral arguments))]
 
-        [('&substr (? string? s) (? numeral? from))
-         (substring s from)]
-        [('&substr (? string? s) (? numeral? from) (? numeral? to))
-         (substring s from to)]
-        [('&substr . _)
-         (error `(&substr expects 1 string followed by 1 or 2 numeral arguments))]
+      [('&mul (? numeral? n) (? numeral? m)) (* n m)]
+      [('&mul . _) (error `(&mul expects 2 numeral arguments))]
 
-        [('&strlen (? string? s)) (string-length s)]
-        [('&strlen . _) (error `(&strlen expects 1 string argument))]
+      [('&sub (? numeral? n) (? numeral? m)) (- n m)]
+      [('&sub . _) (error `(&sub expects 2 numeral arguments))]
 
-        [('&display e) (begin (write e) (newline) e)] ;;; super-dirty ;)
+      [('&div (? numeral? n) 0) (error `(division by 0 is meaningess))]
+      [('&div (? numeral? n) (? numeral? m)) (quotient n m)]
+      [('&div . _) (error `(&div expects 2 numeral arguments))]
 
-        [_ (error `(unrecognized primitive application ,app))]))
+      [('&mod (? numeral? n) (? numeral? m)) (modulo n m)]
+      [('&mod . _) (error `(&mod expects 2 numeral arguments))]
 
-    ;;; ...and finally:
-    (value (desugared form) initial-environment)))
+      [('&strcat (? string? s) (? string? s*)) (string-append s s*)]
+      [('&strcat . _) (error `(&strcat expects 2 string arguments))]
+
+      [('&substr (? string? s) (? numeral? from))
+       (substring s from)]
+      [('&substr (? string? s) (? numeral? from) (? numeral? to))
+       (substring s from to)]
+      [('&substr . _)
+       (error `(&substr expects 1 string followed by 1 or 2 numeral arguments))]
+
+      [('&strlen (? string? s)) (string-length s)]
+      [('&strlen . _) (error `(&strlen expects 1 string argument))]
+
+      [('&display e) (begin (write e) (newline) e)] ;;; super-dirty ;)
+
+      [_ (error `(unrecognized primitive application ,app))]))
+
+   ;;; ...and finally:
+  (value (desugared form) '()))
 
 
 (define (default-initial-environment)

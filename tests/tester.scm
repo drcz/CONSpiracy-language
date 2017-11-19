@@ -26,7 +26,8 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(define EVAL (evaluator (default-initial-environment)))
+(define DEFS (default-initial-environment))
+(define EVAL (evaluator))
 (define ERROR (lambda (msg) (pretty-print `(ERROR! . ,msg)) (exit)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -41,26 +42,26 @@
 (assert-eq? (EVAL ''qwe '() ERROR) 'qwe)
 (assert-eq? (EVAL ''(q w e) '() ERROR) '(q w e))
 
-(assert-eq? (EVAL '(* (+ 2 3) 5) '() ERROR) '25)
-(assert-eq? (EVAL '(/ 12 0) '() (lambda (m) m)) '(division by 0 is meaningess))
-(assert-eq? (EVAL '(/ 12 3) '() ERROR) '4)
-(assert-eq? (EVAL '(- (% 3 5) (% -3 5)) '() ERROR) '1)
+(assert-eq? (EVAL '(* (+ 2 3) 5) DEFS ERROR) '25)
+(assert-eq? (EVAL '(/ 12 0) DEFS (lambda (m) m)) '(division by 0 is meaningess))
+(assert-eq? (EVAL '(/ 12 3) DEFS ERROR) '4)
+(assert-eq? (EVAL '(- (% 3 5) (% -3 5)) DEFS ERROR) '1)
 
-(assert-eq? (EVAL '(++ "hi " "there") '() ERROR) '"hi there")
-(assert-eq? (EVAL '(substr "qwertyu" 3 5) '() ERROR) '"rt")
-(assert-eq? (EVAL '(strlen "qwe") '() ERROR) '3)
+(assert-eq? (EVAL '(++ "hi " "there") DEFS ERROR) '"hi there")
+(assert-eq? (EVAL '(substr "qwertyu" 3 5) DEFS ERROR) '"rt")
+(assert-eq? (EVAL '(strlen "qwe") DEFS ERROR) '3)
 
-(assert-eq? (EVAL '`(2 + 3 = ,(+ 2 3)) '() ERROR) '(2 + 3 = 5))
+(assert-eq? (EVAL '`(2 + 3 = ,(+ 2 3)) DEFS ERROR) '(2 + 3 = 5))
 
-(assert-eq? (EVAL '(if (= 2 3) 'wat? 'gucci) '() EVAL) 'gucci)
+(assert-eq? (EVAL '(if (= 2 3) 'wat? 'gucci) DEFS ERROR) 'gucci)
 
-(assert-eq? (EVAL '(or (= 2 3) (= 3 7) (= 6 6)) '() EVAL) '#t)
-(assert-eq? (EVAL '(or (= 2 3) (= 3 7) (= 6 9)) '() EVAL) '#f)
+(assert-eq? (EVAL '(or (= 2 3) (= 3 7) (= 6 6)) DEFS ERROR) '#t)
+(assert-eq? (EVAL '(or (= 2 3) (= 3 7) (= 6 9)) DEFS ERROR) '#f)
 
-(assert-eq? (EVAL '(and (= 2 2) (= 3 3) (= 6 6)) '() EVAL) '#t)
-(assert-eq? (EVAL '(and (= 2 2) (= 3 3) (= 6 6) (= 7 9)) '() EVAL) '#f)
+(assert-eq? (EVAL '(and (= 2 2) (= 3 3) (= 6 6)) DEFS ERROR) '#t)
+(assert-eq? (EVAL '(and (= 2 2) (= 3 3) (= 6 6) (= 7 9)) DEFS ERROR) '#f)
 
-(assert-eq? (EVAL '(not (= 2 3)) '() EVAL) '#t)
+(assert-eq? (EVAL '(not (= 2 3)) DEFS ERROR) '#t)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (pretty-print '(testing simple variable bindings))
@@ -73,9 +74,9 @@
 (pretty-print '(testing basic phi-forms and lets))
 
 (assert (closure? (EVAL '(phi [(x) x]) '() ERROR)))
-(assert-eq? (EVAL '((phi [(x) (* x x)]) (+ 2 3)) '() ERROR) '25)
-(assert-eq? (EVAL '(let ([x 23] [y (* x x)]) (/ y 23)) '() ERROR) '23)
-(assert-eq? (EVAL '(let ([x '(2 3)] [(a b) x]) (* a b)) '() ERROR) '6)
+(assert-eq? (EVAL '((phi [(x) (* x x)]) (+ 2 3)) DEFS ERROR) '25)
+(assert-eq? (EVAL '(let ([x 23] [y (* x x)]) (/ y 23)) DEFS ERROR) '23)
+(assert-eq? (EVAL '(let ([x '(2 3)] [(a b) x]) (* a b)) DEFS ERROR) '6)
 ;; ...
 
 (let ([Y '(phi [(f)
@@ -85,16 +86,16 @@
   (assert (closure? (EVAL Y '() ERROR)))
   (assert-eq? (EVAL `[(,Y (phi [(f)
                                 (phi [(n) (if (= n 0) 1 (* n (f (- n 1))))])]))
-                      0] '() ERROR) '1)
+                      0] DEFS ERROR) '1)
   (assert-eq? (EVAL `[(,Y (phi [(f)
                                 (phi [(n) (if (= n 0) 1 (* n (f (- n 1))))])]))
-                      5] '() ERROR) '120))
+                      5] DEFS ERROR) '120))
 
 (assert-eq? (EVAL '((phi [(x (? (phi [(y) (not (= x y))]))) 'neq]
-                         [_ 'eq]) 2 3) '() ERROR) 'neq)
+                         [_ 'eq]) 2 3) DEFS ERROR) 'neq)
 
 (assert-eq? (EVAL '((phi [(x (? (phi [(y) (not (= x y))]))) 'neq]
-                         [_ 'eq]) 3 3) '() ERROR) 'eq)
+                         [_ 'eq]) 3 3) DEFS ERROR) 'eq)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (pretty-print '(testing example compendium))
@@ -121,11 +122,11 @@
            (def sum-of-squares (phi [(xs) (sum (map square xs))]))
            ;; ...
           ]]
-       [defs
-         (map (lambda (definition)
-                (and-let* ([('def id form) definition])
-                  `[,id . ,(EVAL form '() ERROR)]))
-              test-compendium)])
+       [defs (append DEFS
+                     (map (lambda (definition)
+                            (and-let* ([('def id form) definition])
+                              `[,id . ,(EVAL form '() ERROR)]))
+                          test-compendium))])
 
   (assert (closure? (EVAL 'square defs ERROR)))
   (assert-eq? (EVAL '(square (+ 2 3)) defs ERROR) '25)

@@ -1,0 +1,109 @@
+;;; Here is a tiny implementation of original LISP, similar to the one described
+;;; in McCarthy's famous paper http://www-formal.stanford.edu/jmc/recursive.html
+;;; -- only without commas, with () standing for NIL, and a few minor fixes.
+
+;;; ``This notation is writable and somewhat readable. (...) If more characters
+;;; were available on the computer, it could be improved considerably.'' :)
+
+;;; NB LISP was first implememnted on IBM 704 by Steve Russel -- the Spacewar!
+;;; guy -- so actually he is the _real_ hero.
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+(def error (phi [(msg) msg])) ;;; does not make much sense but oh well.
+
+;;; primitive operations: ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(def car (phi [((h . t)) h]
+              [(e) (error `(CAN NOT TAKE CAR OF ,e))]
+              [_ (error '(CAR REQUIREZ ONE ARGUMENT))]))
+
+(def cdr (phi [((h . t)) t]
+              [e (error `(CAN NOT TAKE CDR OF ,e))]
+              [_ (error '(CDR REQUIREZ ONE ARGUMENT))]))
+
+(def cons (phi [(h t) `(,h . ,t)]
+               [_ '(CONS REQUIREZ TWO ARGUMENTZ)]))
+
+(def atom (phi [(a) (if (atom? a) 'T ())]
+               [_ '(ATOM REQUIREZ ONE ARGUMENT)]))
+
+(def eq (phi [((? atom? x) x) 'T]
+             [((? atom? x) (? atom? y)) ()]
+             [(x y) (error '(EQ WORKZ ON ATOMZ ONLY))]
+             [_ (error '(EQ REQUIREZ TWO ARGUMENTZ))]))
+
+;;; associacion lists ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(def assoc (phi [(var ()) ()] ;; NB some ppl return var here.
+                [(var ([var . val] . _)) val]
+                [(var (_ . env)) (assoc var env)]))
+
+(def pair (phi [(() ()) ()]
+               [(() _) (error '(TOO MANY VALUEZ FOR PAIR!))]
+               [(_ ()) (error '(TOO MANY VARIABLEZ FOR PAIR!))]
+               [((x . xs) (y . ys)) `([,x . ,y] . ,(pair xs ys))]))
+
+(def append (phi [(() ys) ys]
+                 [((x . xs) ys) `(,x . ,(append xs ys))]))
+
+
+;;; hats off -- The Universal S-function Apply: ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(def apply (phi [(f args) (eval `(,f . ,(appq args)) ())]))
+
+(def appq (phi [(()) ()]
+               [((a . as)) `((QUOTE ,a) . ,(appq as))]))
+
+(def eval (phi [(() _) ()]
+               [('T _) 'T]
+               [((? atom? v) env) (assoc v env)]
+
+               [(('QUOTE e) _) e]
+               [(('LIST . es) env) (evlis es env)]
+
+               [(('CONS x y) env) `(,(eval x env) . ,(eval y env))]
+               [(('CAR x) env) (car (eval x env))]
+               [(('CDR x) env) (cdr (eval x env))]
+               [(('ATOM x) env) (atom (eval x env))]
+               [(('EQ x y) env) (eq (eval x env) (eval y env))]
+
+               [(('COND . cond-clauses) env) (evcond cond-clauses env)]
+
+               [((('LAMBDA vars body) . args) env)
+                (eval body (append (pair vars (evlis args env)) env))]
+
+               [((('LABEL name expr) . args) env) ;; XD
+                (eval `(,expr . ,args) `([,name . (LABEL ,name ,expr)] . ,env))]
+
+               [((() . _) _) (error '(EVALUATION FAILED))]
+
+               [((f . args) env) (eval `(,(assoc f env) . ,args) env)]
+               
+               [wtf (error `(UNRECOGNIZED EXPRESSION ,wtf))]))
+
+
+;;; evlis presley sings this song, put some śmieci to the hasiok.
+(def evlis (phi [(() _) ()]
+                [((e . es) env) `(,(eval e env) . ,(evlis es env))]))
+
+(def evcond (phi [(() _) ()]
+                 [(([p e] . rest) env)
+                  (if (= (eval p env) 'T)
+                      (eval e env)
+                      (evcond rest env))]))
+
+;;; jesus, how much simpler it is today. anyway, let's try it!
+
+[e.g. (apply '(LAMBDA (X Y) (CONS (CAR X) Y)) '((A B) (C D)))
+      ===> (A C D)]
+
+;;; ``Calculating the values of functions by using `apply` is an activity better
+;;;  suited to electronic computers than to people.''
+[e.g. (apply '(LABEL FF (LAMBDA (X) (COND ((ATOM X) X) (T (FF (CAR X))))))
+             '(((A . B) . C)))
+      ===> A]
+
+[e.g. (apply '(LABEL APPEND (LAMBDA (X Y) (COND ((EQ X ()) Y)
+                                                (T (CONS (CAR X)
+                                                         (APPEND (CDR X) Y))))))
+             '((A B) (C D E)))
+      ===> (A B C D E)]
+

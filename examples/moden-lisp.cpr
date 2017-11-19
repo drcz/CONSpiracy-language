@@ -1,0 +1,71 @@
+;;; Nowaydays it's so much easier to implement LISP-like language...
+;;; this one not only allows multiple definitions ("LABEL"s), but also
+;;; has a clean, lexical scoping!
+
+(def error (phi [(msg) (&display msg)]))
+
+(def mapcar (phi [(_ ()) ()]
+                 [(f (x . xs)) `(,(f x) . ,(mapcar f xs))]))
+
+(def append (phi [(() ys) ys]
+                 [((x . xs) ys) `(,x . ,(append xs ys))]))
+
+(def assoc (phi [(var ()) ()]
+                [(var ([var . val] . _)) val]
+                [(var (_ . env)) (assoc var env)]))
+
+(def pair (phi [(() ()) ()]
+               [(() _) (error '(too many valuez for pair!))]
+               [(_ ()) (error '(too many variablez for pair!))]
+               [((x . xs) (y . ys)) `([,x . ,y] . ,(pair xs ys))]))
+
+(def eval
+     (phi [(() _ _) ()]
+          [('T _ _) 'T]
+          [(('&closure v b e) _ _) `(&closure ,v ,b ,e)]
+          [(('quote e) _ _) e]
+          [((? atom? v) env topenv) (assoc v (append env topenv))]
+          [(('list . es) env topenv) (evlis es env topenv)]
+          [(('cond . clauses) env topenv) (evcond clauses env topenv)]
+          [(('lambda vars body) env _) `(&closure ,vars ,body ,env)]
+          [((f . args) env topenv) (apply (evlis `(,f . ,args) env topenv) topenv)]
+          [wtf (error `(unrecognized expression ,wtf))]))
+
+(def apply
+     (phi [(('cons h t) _) `(,h . ,t)]
+          [(('car (h . _)) _) h]
+          [(('cdr (_ . t)) _) t]
+          [(('eq? x x) _) 'T]
+          [(('eq? _ _) _) ()]
+          [(('atom? (_ . _)) _) ()]
+          [(('atom? _      ) _) 'T]
+          [((('&closure vars body env) . args) topenv)
+           (eval body (append (pair vars args) env) topenv)]
+          [wtf (error `(unrecognized application ,wtf))]))
+
+(def evlis (phi [(es env topenv) (mapcar (phi [(e) (eval e env topenv)]) es)]))
+
+(def evcond (phi [(() _ _) ()]
+                 [(([p e] . rest) env topenv)
+                  (if (= (eval p env topenv) 'T)
+                      (eval e env topenv)
+                      (evcond rest env topenv))]))
+
+(def run*
+     (phi [((form) topenv) (eval form () topenv)]
+          [((('label id form) . prog) topenv)
+           (run* prog `([,id . ,(eval form () topenv)] . ,topenv))]
+          [wtf (error `(unrecognized form ,wtf))]))
+
+(def primops '(car cdr cons eq? atom?))
+(def run (phi [(program) (run* program (pair primops primops))]))
+
+
+(e.g. 
+ (run '[ (label dbl (lambda (x) (cons x x)))
+         (label foldr (lambda (op e xs) (cond ((eq? xs ()) e)
+                                         (T (op (car xs) (foldr op e (cdr xs)))))))
+         (label apd (lambda (xs ys) (foldr cons ys xs)))
+         (label map (lambda (f xs) (foldr (lambda (h t) (cons (f h) t)) () xs)))
+         (map dbl (apd '(q w e) '(a s d))) ])
+ ===> ((q . q) (w . w) (e . e) (a . a) (s . s) (d . d)))

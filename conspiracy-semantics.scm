@@ -1,8 +1,8 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; The [operational] semantics of CONSpiracy, aka the Thing.
-;;; 2017-11-18, Alicante
+;;; 2017-11-18/19, Alicante
 
-(include "conspiracy-syntax.scm") ;; tmp?
+(include "conspiracy-syntax.scm") ;; TODO: sure?
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; "environments"...
@@ -17,13 +17,79 @@
     [#f '&UNBOUND]
     [(id . expr) expr]))
 
+(import (only (srfi srfi-1) alist-delete)) ;; :)
+
 (define (extended binding #;with id #;as expr)
-  `([,id . ,expr] . ,binding)) ;;; TODO: czy delecik?
+  `([,id . ,expr] . ,(alist-delete id binding)))
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; internal representation of phi-forms...
 (define (closure? x)
   (and-let* ([('&CLOSURE ([(? pattern?) (? form?)] ...) (? binding?)) x])))
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; notion of free variable.
+
+(define (free-vars form)
+  (define (pattern-bound-vars pattern)
+    (match pattern
+      [(? identifier? id) `(,id)]
+      [('quote _) '()]
+      [('? _) '()]
+      [('? _ id) `(,id)]
+      [(p . ps) (union (pattern-bound-vars p) (pattern-bound-vars ps))]
+      [_ '()]))
+
+  (define (guards-free-vars pattern)
+    (match pattern
+      [(? identifier?) '()]
+      [('quote _) '()]
+      [('? guard . _) (free-vars guard)]
+      [(p . ps) (union (guards-free-vars p) (guards-free-vars ps))]
+      [_ '()]))
+
+  (match form
+    [(? identifier? id) `(,id)]
+    
+    [(? closure?) '()] ;; just think about it.
+
+    [('phi . cases) (let fv-cases ([cases cases])
+                    (match cases
+                      [() '()]
+                      [([pattern* form*] . cases*)
+                       (union (difference (union (free-vars form*)
+                                                 (guards-free-vars pattern*))
+                                          (pattern-bound-vars pattern*))
+                              (fv-cases cases*))]
+                      [wtf? (error `(deformed phi form case ,wtf?))]))]
+
+    [('quote _) '()]
+
+    [('quasiquote qqe) (let fv-qq ([expr qqe])
+                         (match expr
+                           [('unquote e) (free-vars e)]
+                           [(h . t) (union (fv-qq h) (fv-qq t))]
+                           [_ '()]))]
+
+    [('if p c a) (union (free-vars p) (free-vars c) (free-vars a))]
+
+    [(f . (? list? args)) (apply union (map free-vars form))]
+    [(f . a) (union (free-vars f) (free-vars a))]
+
+    [_ '()]))
+
+(e.g. (free-vars '`(,x ,(f y (+ x y) z))) ===> (f y + z x))
+(e.g. (free-vars '(phi [(x) (* x x)])) ===> (*))
+(e.g. (free-vars '(phi [(x) (* x y)])) ===> (y *))
+
+(e.g. (free-vars '(phi [(x) (* x y)]
+                     [(z y) (+ z y)]
+                     [(z x) (f z x abc)])) ===> (+ abc f y *))
+
+(e.g. (free-vars '(phi [(? (phi [(x) (p? x)])) 'qwe])) ===> (p?))
+(e.g. (free-vars '(phi [((? p? x) (? q?)) `(,x ,xyz)])) ===> (p? q? xyz))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -41,7 +107,11 @@
                               ['&UNBOUND (error `(unbound identifier ,id))]
                               [expr expr])]
 
-        [('phi . cases) `(&CLOSURE ,cases ,binding)] ;;TODO: only FV from binding
+        [('phi . cases) (let* ([vars-to-enclose (free-vars form)]
+                             [binding* (filter (lambda ((k . _))
+                                                 (member? k vars-to-enclose))
+                                               binding)])
+                        `(&CLOSURE ,cases ,binding*))]
 
         [('quote e) e]
 

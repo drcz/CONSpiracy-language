@@ -1,0 +1,37 @@
+;;; a crazy idea from 1936. nice one Emil!
+
+(def nth (phi [(0 (x . _)) x]
+            [(n (_ . xs)) (nth (- n 1) xs)]
+            [(n ()) #f]))
+
+(def length (phi [(()) 0]
+               [((_ . xs)) (+ 1 (length xs))]))
+
+(def instruction
+     (phi [('1) (phi [((_ . left) right pc) `((1 . ,left)  ,right ,(+ 1 pc))]
+                 [(()         right pc) `((1)          ,right ,(+ 1 pc))])]
+        [('0) (phi [((_ . left) right pc) `((0 . ,left)  ,right ,(+ 1 pc))]
+                 [(()         right pc) `((0)          ,right ,(+ 1 pc))])]
+        [('R) (phi [(left (r . right) pc) `((,r . ,left) ,right ,(+ 1 pc))]
+                 [(left ()          pc) `((0 . ,left)  ()     ,(+ 1 pc))])]
+        [('L) (phi [((l . left) right pc) `(,left (,l . ,right) ,(+ 1 pc))]
+                 [(()         right pc) `(()    (0 . ,right)  ,(+ 1 pc))])]
+        [(['J n])  (phi [(left right _) `(,left ,right ,n)])]
+        [(['J0 n]) (phi [((0 . left) right _ ) `((0 . ,left) ,right ,n)]
+                      [(left       right pc) `(,left ,right ,(+ 1 pc))])]
+        [(['J1 n]) (phi [((1 . left) right _ ) `((1 . ,left) ,right ,n)]
+                      [(left       right pc) `(,left ,right ,(+ 1 pc))])]))
+
+(def step
+     (phi [(left right pc instructions)
+         (if (< pc (length instructions))
+             (let ([action (instruction (nth pc instructions))]
+                   [(left* right* pc*) (action left right pc)])
+               (step left* right* pc* instructions))
+             left)]))
+
+(def run (phi [(instructions initial-left-tape)
+             (step initial-left-tape () 0 instructions)]))
+
+[e.g. (run '(1 R 1 R 1) ()) ===> (1 1 1)]
+[e.g. (run '([J1 4] 1 L [J 0] R [J0 8] R [J 5]) '(0 0 0 1)) ===> (0 1 1 1 1)]

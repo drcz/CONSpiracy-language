@@ -45,8 +45,8 @@
 (def foldr (phi [(_ e ()) e]
               [(op e (x . xs)) (op x (foldr op e xs))]))
 
-(def foldl (phi [(op e ()) e]
-              [(op e (x . xs)) (foldl op (op e x) xs)]))
+(def foldl (phi [(op acc ()) acc]
+              [(op acc (x . xs)) (foldl op (op acc x) xs)]))
 
 
 (def concat (phi [(xs ys) (foldr cons ys xs)]))

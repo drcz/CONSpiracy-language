@@ -1,0 +1,76 @@
+;;; super-duper primitive bf to C compiler -- an excercise in string manipulations.
+
+(def foldr (phi [(o e ()) e]
+              [(o e (x . xs)) (o x (foldr o e  xs))]))
+
+(def map (phi [(f xs) (foldr (phi [(h t) `(,(f h) . ,t)]) () xs)]))
+(def concat (phi [(xs ys) (foldr (phi [(h t) `(,h . ,t)]) ys xs)]))
+
+(def join (phi [ss (foldr ++ "" ss)]))
+[e.g. (join "hi" " " "the" "re!") ===> "hi there!"]
+
+(def nth-char (phi [((? string? s) (? numeral? n)) (substr s n (+ n 1))]))
+
+(def first-change (phi [((? string? s)) (first-change s 1 (strlen s))]
+                     [(s n n) (+ n 1)]
+                     [(s n m) (if (= (nth-char s n) (nth-char s (- n 1)))
+                                  (first-change s (+ n 1) m)
+                                  n)]))
+(def split-str (phi [("") '()]
+                  [((? string? s)) (let ([ch (first-change s)]
+                                         [prefix (substr s 0 ch)]
+                                         [s* (substr s ch)])
+                                     `(,prefix . ,(split-str s*)))]))
+
+[e.g. (split-str "qqqqwweeeeeaezz") ===> ("qqqq" "ww" "eeeee" "a" "e" "zz")]
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(def parse
+     (phi [(program)
+         (map (phi [(s) `(,(nth-char s 0) ,(strlen s))]) (split-str program))]))     
+[e.g. (parse "++++.>>>>>--") ===> (("+" 4) ("." 1) (">" 5) ("-" 2))]
+
+(def compile-command
+     (phi [(("+" n)) (join "  *p += " (str<-num n) ";\n")]
+        [(("-" n)) (join "  *p -= " (str<-num n) ";\n")]
+        [(("." 1)) "  putchar(*p);\n"]
+        [(("," 1)) "  *p = getchar();\n"]
+        [((">" n)) (join "  p += " (str<-num n) ";\n")] ;;; MM ?!
+        [(("<" n)) (join "  p -= " (str<-num n) ";\n")]
+        [(("[" 1)) "  while(*p) {\n"]
+        [(("]" 1)) "  }\n"]
+        [((c n)) (++ (compile-command `(,c 1)) (compile-command `(,c ,(- n 1))))]
+        [_ ""]))
+
+(def compile
+     (phi [(program memsize)
+         (let ([header (join "#include<stdlib.h>\n"
+                             "#include<stdio.h>\n\n"
+                             "int main() {\n"
+                             "  unsigned char *mem = calloc("
+                             (str<-num memsize) ", sizeof(unsigned char));\n"
+                             "  unsigned char *p = mem;\n\n"
+                             "  if(!mem) {\n"
+                             "    fprintf(stderr, \"can not allocate memory.\");\n"
+                             "    return 1;\n"
+                             "  }\n\n")]
+               
+               [footer (join "\n"
+                             "  free(mem);\n"
+                             "  return 0;\n"
+                             "}\n")]
+
+               [commands (map compile-command (parse program))])
+           (join header (join . commands) footer))]))
+
+[e.g. (compile ",>,<[->+<]>." 3) ===> "#include<stdlib.h>\n#include<stdio.h>\n\nint main() {\n  unsigned char *mem = calloc(3, sizeof(unsigned char));\n  unsigned char *p = mem;\n\n  if(!mem) {\n    fprintf(stderr, \"can not allocate memory.\");\n    return 1;\n  }\n\n  *p = getchar();\n  p += 1;\n  *p = getchar();\n  p -= 1;\n  while(*p) {\n  *p -= 1;\n  p += 1;\n  *p += 1;\n  p -= 1;\n  }\n  p += 1;\n  putchar(*p);\n\n  free(mem);\n  return 0;\n}\n"]
+;;; this one "add" two "numbers", check it out!
+;;;   gcc bf-test1.c -o bf-test1 
+;;; and then type, say $$ (and hit enter) -- you get H, as ascii codes for $ and H
+;;; are 36 and 72 resp.
+
+[e.g. (compile "++++++++[>++++[>++>+++>+++>+<<<<-]>+>+>->>+[<]<-]>>.>---.+++++++..+++.>>.<-.<.+++.------.--------.>>+.>++." 997) ===> "#include<stdlib.h>\n#include<stdio.h>\n\nint main() {\n  unsigned char *mem = calloc(997, sizeof(unsigned char));\n  unsigned char *p = mem;\n\n  if(!mem) {\n    fprintf(stderr, \"can not allocate memory.\");\n    return 1;\n  }\n\n  *p += 8;\n  while(*p) {\n  p += 1;\n  *p += 4;\n  while(*p) {\n  p += 1;\n  *p += 2;\n  p += 1;\n  *p += 3;\n  p += 1;\n  *p += 3;\n  p += 1;\n  *p += 1;\n  p -= 4;\n  *p -= 1;\n  }\n  p += 1;\n  *p += 1;\n  p += 1;\n  *p += 1;\n  p += 1;\n  *p -= 1;\n  p += 2;\n  *p += 1;\n  while(*p) {\n  p -= 1;\n  }\n  p -= 1;\n  *p -= 1;\n  }\n  p += 2;\n  putchar(*p);\n  p += 1;\n  *p -= 3;\n  putchar(*p);\n  *p += 7;\n  putchar(*p);\n  putchar(*p);\n  *p += 3;\n  putchar(*p);\n  p += 2;\n  putchar(*p);\n  p -= 1;\n  *p -= 1;\n  putchar(*p);\n  p -= 1;\n  putchar(*p);\n  *p += 3;\n  putchar(*p);\n  *p -= 6;\n  putchar(*p);\n  *p -= 8;\n  putchar(*p);\n  p += 2;\n  *p += 1;\n  putchar(*p);\n  p += 1;\n  *p += 2;\n  putchar(*p);\n\n  free(mem);\n  return 0;\n}\n"]
+;;; and this one prints "Hello World!\n".
+
+;;; however this "canonical" compiler produces insecure progams, as nothing stops
+;;; them from moving outside of mem -- but who cares?

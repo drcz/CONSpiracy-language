@@ -199,6 +199,8 @@
                          [(h . t) `(,(desugared-qq h) . ,(desugared-qq t))]
                          [_ expr])))]
 
+    [('quote _) form]
+
     [(f* . as*)
      `(,(desugared f*) . ,(if (list? as*) (map desugared as*) (desugared as*)))]
 

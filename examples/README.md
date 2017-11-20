@@ -21,5 +21,5 @@ plus some sketchy implementations of various programming languages (each done <1
 and some math:
 - [peano.cpr](peano.cpr) -- toying with Peano numerals
 - [disjunctive-normal-form.cpr](disjunctive-normal-form.cpr) -- not very impressive conversion of sentential formulas to DNF
-- sets.cpr -- some set-theoretical constructions
-- groups.cpr -- CONSpiracy classic, an introduction to group theory
+- [sets.cpr](sets.cpr) -- some set-theoretical constructions (for groups.cpr)
+- [groups.cpr](groups.cpr) -- CONSpiracy classic, an introduction to group theory

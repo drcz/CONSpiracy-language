@@ -1,0 +1,215 @@
+;;; this is an attempt at [moslty] procedural description of the very 
+;;; basics of group thery. it is mostly rewrite from ZJEB version, with
+;;; some tiny tweaking and some more explanations. incomplete as it is,
+;;; it is a nice excercise in expressibility. let's go!
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;; in sets.cpr you have this `perms` definition; actually
+;;; from set-theoretic point of view a permutation is a function (bijection).
+;;; functions can be composed. assuming you're only working with permutations
+;;; of `(iota n)` [for positive n ofc], we can mimick composition with the
+;;; following:
+(def compose-permutations
+     (phi [(perm perm*) (map (phi [(p) (nth p perm)]) perm*)]))
+;;; the idea is simple: take first "permutation" as a set, and apply the second
+;;; one to it (so that it imposes some ordering on the set):
+[e.g. (compose-permutations '(0 2 1) '(2 1 0)) ===> (1 2 0)]
+[e.g. (compose-permutations '(0 3 2 1) '(0 1 2 3)) ===> (0 3 2 1)]
+
+;;; also, we'll be using addition and multiplication modulo n a lot, so:
+(def mk-modulo
+     (phi [(op n) (phi [(x y) (% (op x y) n)])]))
+
+[e.g. ((mk-modulo + 5) 2 2) ===> 4]
+[e.g. ((mk-modulo + 5) 2 4) ===> 1]
+[e.g. ((mk-modulo * 3) 2 2) ===> 1]
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; now we can talk about abstract algebra -- i.e. about (mostly binary)
+;;; operations [sometimes called ``actions''] defined over [some] sets
+;;; (called in the following "domains", though it would be way more traditional
+;;; to call them "universes" as a domain of binary action is a cartesian square
+;;; of what we call "domain"... oh well)
+
+;;; a binary operation is said to be closed over given domain D if for
+;;; any 2 elements of D it yields an element of D.
+(def operation-closed?
+     (phi [(op dom)
+         (every? (phi [((x y)) (member? (op x y) dom)])
+                 (cartesian dom dom))]))
+;;; addition modulo n is closed over `(iota n)`:
+[e.g. (operation-closed? (mk-modulo + 5) (iota 5)) ===> #t]
+;;; while of course addition itself is not (e.g. (+ 3 3) is 6, outside of (iota 5)
+[e.g. (operation-closed? + (iota 5)) ===> #f]
+;;; composing permutations of given set is closed over these permutations.
+[e.g. (operation-closed? compose-permutations (perms (iota 3))) ===> #t]
+
+;;; a neutral element for/of an operation * is an element e of it's domain such
+;;; that for any x in the domain we have e * x = x * e = x. some say it "does not
+;;; touch x". this property is super-readable in the first sub-form of `every?`
+(def neutral-element?
+     (phi [(e op dom)
+         (every? (phi [(x) (and (= (op e x) x) (= (op x e) x))]) dom)]))
+;;; 0 is the neutral element of addition:
+[e.g. (neutral-element? 0 + (iota 10)) ===> #t]
+;;; 1 is the neutral element of multiplication:
+[e.g. (neutral-element? 1 * (iota 10)) ===> #t]
+;;; identity is the neutral element for permutation composition.
+[e.g. (neutral-element? '(0 1 2) compose-permutations (perms (iota 3))) ===> #t]
+;;; you may wish to contemplate foldr from lists.cpr now, especially it's
+;;; projection to sum and product.
+
+;;; associative operation "does not care about paretneses". again the formulation
+;;; of this property is super-readable in `every?`'s first subform
+(def associative?
+     (phi [(op dom)
+         (every? (phi [((x (y z))) (= (op x (op y z)) (op (op x y) z))])
+                 (cartesian dom (cartesian dom dom)))]))
+;;; addition and multiplication are obviously associative
+[e.g. (associative? + (iota 5)) ===> #t]
+[e.g. (associative? * (iota 5)) ===> #t]
+;;; composition of functions (and in particular permutations) is always associative
+[e.g. (associative? compose-permutations (perms (iota 3))) ===> #t]
+;;; taking the average is not associative though:
+[e.g. (associative? (phi [(x y) (/ (+ x y) 2)]) (iota 5)) ===> #f]
+
+
+;;; same for commutativity ("not caring for the ordering") -- now that you have
+;;; grasped our notation further comments should be unnecessary.
+(def commutative?
+     (phi [(op dom)
+         (every? (phi [((x y)) (= (op x y) (op y x))]) (cartesian dom dom))]))
+;;; addition is classical example of commutative action.
+[e.g. (commutative? + (iota 5)) ===> #t]
+;;; multiplication is commutative as well
+[e.g. (commutative? * (iota 5)) ===> #t]
+;;; as the average
+[e.g. (commutative? (phi [(x y) (/ (+ x y) 2)]) (iota 5)) ===> #t]
+;;; composing permutations in general is not commutative. the only exceptions
+;;; are permutations of sets with cardinality 1 and 2 (think about it!)
+[e.g. (commutative? compose-permutations (perms (iota 2))) ===> #t]
+[e.g. (commutative? compose-permutations (perms (iota 3))) ===> #f]
+
+
+;;; an inverse of element x for operation * is y s.t. x*y = y*x = e, where
+;;; e is the neutral element... so for addition inverse of n is -n, for
+;;; multiplication it's 1/n, for function composition it is the inverse function;
+;;; nb in case of integer multiplication not every element has it's inverse.
+;;; and for some (weirder) operations the inverse might not be unique.
+(def inverse?
+     (phi [(y #;of x #;wrt op neutr) (and (= (op y x) neutr) (= (op x y) neutr))]))
+
+;;; there are also left-inverses and right-inverses, which work from only one side
+;;; (obviosuly for non-commutative operations) but we don't really care here.
+
+;;; we can check if every element of operation's domain has inverse[s] easily:
+(def has-inverses?
+     (phi [(op dom neutr)
+         (every? (phi [(x) (any? (phi [(y) (inverse? y x op neutr)]) dom)]) dom)]))
+[e.g. (has-inverses? (mk-modulo + 5) (iota 5) 0) ===> #t]
+[e.g. (has-inverses? (mk-modulo * 5) (iota 5) 1) ===> #f]
+
+(def has-unique-inverses?
+     (phi [(op dom neutr)
+         (every? (phi [(x)
+                     (= (length (filter (phi [(y) (inverse? y x op neutr)])
+                                        dom))
+                        1)])
+                 dom)]))
+;;; obviously addition (modulo and "full") and composition of bijections have
+;;; unique inverses:
+[e.g. (has-unique-inverses? (mk-modulo + 5) (iota 5) 0) ===> #t]
+[e.g. (has-unique-inverses? compose-permutations (perms (iota 3)) '(0 1 2))
+      ===> #t]
+
+
+;;; finally we can tell what a group is! can you read it?
+;;; G is the domain [or more correctly the universe / carrier set],
+;;; op is operation [action], and e is op's neutral element (in G).
+(def group?
+     (phi [((G e op))
+         (and (member? e G)
+              (operation-closed? op G)
+              (neutral-element? e op G)
+              (associative? op G)
+              (has-unique-inverses? op G e))]))
+
+;;; a trivial group consists of 1 element:
+[e.g. (group? `((0) 0 ,+)) ===> #t]
+;;; addition modulo n is a group (over `(iota n)` ofc):
+[e.g. (group? `(,(iota 5) 0 ,(mk-modulo + 5))) ===> #t]
+;;; permutations of any set with their composition are as well
+[e.g. (group? `(,(perms (iota 3)) ,(iota 3) ,compose-permutations)) ===> #t]
+
+
+;;; a group with commutative operation is called Abelian, in honour of Niels
+;;; Henrik Abel (not Kain's brother).
+(def abelian-group?
+     (phi [((G e op)) (and (group? `(,G ,e ,op))
+                         (commutative? op G))]))
+
+[e.g. (abelian-group? `((0) 0 ,+)) ===> #t]
+[e.g. (abelian-group? `(,(iota 5) 0 ,(mk-modulo + 5))) ===> #t]
+[e.g. (abelian-group? `(,(perms (iota 2)) ,(iota 2) ,compose-permutations))
+      ===> #t]
+[e.g. (abelian-group? `(,(perms (iota 3)) ,(iota 3) ,compose-permutations))
+      ===> #f]
+
+;;; these examples {addition modulo n, permutations of n-element set} are so
+;;; common they have their names, Z_n and S_n respectively:
+(def create-Zn (phi [(n) `(,(iota n) 0 ,(mk-modulo + n))]))
+(def create-Sn (phi [(n) `(,(perms (iota n)) ,(iota n) ,compose-permutations)]))
+
+;;; time for the first (and for now the only) group-theoretic construction.
+;;; a direct product of groups is... you can read it!
+(def direct-product
+     (phi [((G1 e1 op1) (G2 e2 op2))
+         `(,(cartesian G1 G2)
+           (,e1 ,e2)
+           ,(phi [((x1 x2) (y1 y2)) `(,(op1 x1 y1) ,(op2 x2 y2))]))]))
+
+[e.g. (group? (direct-product (create-Zn 2) (create-Zn 2))) ===> #t]
+[e.g. (abelian-group? (direct-product (create-Zn 2) (create-Zn 2))) ===> #t]
+
+;;; {warning: this one takes several minutes in conspiracy-interactive}
+[e.g. (group? (direct-product (create-Sn 3) (create-Zn 2))) ===> #t]
+
+;;; ok, one more group-theoretic notion: a subgroup.
+;;; a subset X of a group [with operation restricted to X] might be a group as well
+
+;;; is given subset H of G's universe a group (with the same e and op)?
+(def subgroup?
+     (phi [(H (G e op))
+         (and (member? e H)
+              (subset? H G)
+              (operation-closed? op H)
+              (has-inverses? op H e))]))
+
+[e.g. (subgroup? '((0 1 2) (2 1 0)) (create-Sn 3)) ===> #t]
+
+;;; therefore, given
+(def universe (phi [((G e op)) G]))
+[e.g. (universe (create-Sn 3)) 
+      ===> ((0 1 2) (0 2 1) (1 0 2) (1 2 0) (2 0 1) (2 1 0))]
+;;; we can find them all!
+(def all-subgroups
+     (phi [(Gr)
+         (filter (phi [(H) (subgroup? H Gr)])
+                 (powerset (universe Gr)))]))
+
+[e.g. (all-subgroups (create-Sn 3))
+      ===> ( ((0 1 2) (0 2 1) (1 0 2) (1 2 0) (2 0 1) (2 1 0))
+             ((0 1 2) (0 2 1))
+             ((0 1 2) (1 0 2))
+             ((0 1 2) (1 2 0) (2 0 1))
+             ((0 1 2) (2 1 0))
+             ((0 1 2)))]
+
+;;; the next step (besides finding easier ways of testing for being a subgroup)
+;;; would be to recognize groups which algebraically are the same; i.e. notice
+;;; that `[((0 1 2) (0 2 1)) (0 1 2) ,compose-permutations] and (mk-Zn 2) differ
+;;; "only in notation". for this we'll have to define super-important algebraic
+;;; notion of [group] isomorphism, which is a special case of [group] homomorphism.
+;;; ...but not today.
+

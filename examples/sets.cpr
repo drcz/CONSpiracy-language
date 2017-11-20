@@ -1,10 +1,11 @@
-;;; HEY! you have to paste [some] stuff from lists.cpr first.
-;;; sorry, include/load is on the way...
+;;; some set-theoretic crap.
+;;; {you have to paste [some] stuff from lists.cpr first... sorry}
 
 ;;; TODO jesus it's so ugly
 (def append-map (phi [(f xs) (foldr (phi [(h t) (concat (f h) t)]) () xs)]))
 ;;; a curried cons...
 (def push (phi [(x) (phi [(xs) `(,x . ,xs)])]))
+
 
 ;;; a "cartesian product" of two lists:
 (def cartesian
@@ -37,4 +38,4 @@
 
 [e.g. (perms '(0 1 2)) ===> ((0 1 2) (0 2 1) (1 0 2) (1 2 0) (2 0 1) (2 1 0))]
 
-;;; TBC
+;;; TBC?

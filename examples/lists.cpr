@@ -1,4 +1,4 @@
-;;; classical operations on lists.
+;;; classical operations on lists. {this file is self-contained}
 ;;; TODO more e.g. forms.
 
 (def pair? (phi [((_ . _)) #t]

@@ -55,7 +55,7 @@ it's...
 ## the Psychodelic Language CONSpiracy
 
 Another prototype implementation of the most dangerous applicative language.
-Why "program" when you can express, define, reason about, understand, smoke cigarettees?
+Why "program" when you can express, define, reason about, understand, smoke cigarettes?
 
 Work in progress, go away.
 

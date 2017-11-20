@@ -45,11 +45,19 @@
 (assert-eq? (EVAL '(* (+ 2 3) 5) DEFS ERROR) '25)
 (assert-eq? (EVAL '(/ 12 0) DEFS (lambda (m) m)) '(division by 0 is meaningless))
 (assert-eq? (EVAL '(/ 12 3) DEFS ERROR) '4)
+(assert-eq? (EVAL '(/ 11 3) DEFS ERROR) '3)
 (assert-eq? (EVAL '(- (% 3 5) (% -3 5)) DEFS ERROR) '1)
 
 (assert-eq? (EVAL '(++ "hi " "there") DEFS ERROR) '"hi there")
-(assert-eq? (EVAL '(substr "qwertyu" 3 5) DEFS ERROR) '"rt")
 (assert-eq? (EVAL '(strlen "qwe") DEFS ERROR) '3)
+(assert-eq? (EVAL '(substr "qwertyu" 3 5) DEFS ERROR) '"rt")
+(assert-eq? (EVAL '(substr "qwertyu" 3 100) DEFS ERROR) '"rtyu")
+(assert-eq? (EVAL '(substr "qwertyu" 3) DEFS ERROR) '"rtyu")
+(assert-eq? (EVAL '(substr "qwertyu" 100) DEFS ERROR) '"")
+(assert-eq? (EVAL '(substr "qwertyu" 100 101) DEFS ERROR) '"")
+(assert-eq? (EVAL '(substr "qwertyu" -1) DEFS ERROR) '"")
+(assert-eq? (EVAL '(substr "qwertyu" 3 2) DEFS ERROR) '"")
+
 
 (assert-eq? (EVAL '`(2 + 3 = ,(+ 2 3)) DEFS ERROR) '(2 + 3 = 5))
 
@@ -63,10 +71,17 @@
 
 (assert-eq? (EVAL '(not (= 2 3)) DEFS ERROR) '#t)
 
+(assert-eq? (EVAL '(num<-str "13") DEFS ERROR) '13)
+(assert-eq? (EVAL '(num<-str "wat?") DEFS ERROR) '0)
+(assert-eq? (EVAL '(str<-num 12) DEFS ERROR) '"12")
+(assert-eq? (EVAL '(str<-num "q") DEFS (lambda (m) m))
+            '(&num2str expects 1 numeral argument))
+
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (pretty-print '(testing simple variable bindings))
 
-(assert-eq? (EVAL 'qwe '() (lambda (_) 'wanted-error)) 'wanted-error)
+(assert-eq? (EVAL 'qwe '() (lambda (msg) msg)) '(unbound identifier qwe))
 (assert-eq? (EVAL 'qwe '([qwe . 23]) ERROR) '23)
 ;; ...
 
@@ -96,6 +111,25 @@
 
 (assert-eq? (EVAL '((phi [(x (? (phi [(y) (not (= x y))]))) 'neq]
                          [_ 'eq]) 3 3) DEFS ERROR) 'eq)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(pretty-print '(testing tricky expressions))
+
+(assert-eq? (EVAL '`(qwe ,((phi [(x) (* x x)]) (+ 2 3))) DEFS ERROR) '(qwe 25))
+
+(assert-eq? (EVAL '[(phi [(x) `(qwe ,((phi [(y) (* y x)]) (+ 2 3)))]) (- 9 6)]
+                  DEFS ERROR) '(qwe 15))
+
+(assert-eq? (EVAL '(let ([(a p?) `(3 ,(phi [(x) (< 0 x)]))])
+                     [(phi [(x) `(qwe ,((phi [(? p? x) (* x x)] [_ 23]) . a))])
+                      (- 9 6)])
+                  DEFS ERROR) '(qwe 9))
+
+(assert-eq? (EVAL '(let ([(a p?) `(,(- 1 3) ,(phi [(x) (< 0 x)]))])
+                     [(phi [(x) `(qwe ,((phi [(? p? x) (* x x)] [_ 23]) . a))])
+                      (- 9 6)])
+                  DEFS ERROR) '(qwe 23))
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (pretty-print '(testing example compendium))

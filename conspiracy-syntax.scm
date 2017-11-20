@@ -27,6 +27,9 @@
                                  &eq? 
                                  &lt? &add &mul &sub &div &mod
                                  &strcat &substr &strlen
+                                 ;;; the following ones are questionable
+                                 &num2str &str2num
+                                 ;;; display form for dbg (compiler will ignore it)
                                  &display)))
 
 

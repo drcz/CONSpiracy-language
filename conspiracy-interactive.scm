@@ -40,7 +40,8 @@
                                    `(,frm . ,thms))]
       [('thm. f) (ERROR `(incorrect form ,f))]
       
-      ['HALT (display "Auf Wiedersehen!") (newline) (exit)]
+      ['&I-really-want-to-quit-this-CONSpiracy
+       (display "Auf Wiedersehen!") (newline) (exit)]
 
       ['&show-theorems (begin
                            (map (lambda (t)
@@ -57,7 +58,7 @@
       [_ (ERROR '(syntax error))] )))
 
 
-(define (fatal-error frm)
+(define ((fatal-error frm))
   (pretty-print `(FATAL ERROR: initial compendium failed on ,frm))
   (pretty-print '(exiting NOW!))
   (exit))
@@ -65,17 +66,21 @@
 (define *initial-compendium*
   (append
    (map (lambda (definition)
-          (and-let* ([('def id form) definition])
+          (and-let* ([('def (? identifier? id) (? form? form)) definition])
             `[,id . ,(EVAL form '() (fatal-error form))]))
-        '[ #;place-your-initial-compendium-here ])
+        '[ (def > (phi [(m n) (< n m)])) 
+           (def >= (phi [(m n) (not (< m n))]))
+           (def <= (phi [(m n) (not (< n m))]))
+           #;place-your-initial-defs-here ])
    (default-initial-environment)))
 
 (define *initial-theorems* '()) ;; everything theorem-wise is just a placeholder...
 
 
 (begin ;; "RUN"
-  (display "(-= PSYCHODELIC LANGUAGE CONSpiracy v0.33 =--)") (newline)
-  (display "(S.Dercz 2016-17, Eindhoven, Gdynia, Alicante)") (newline)
-  (display "type HALT to quit") (newline)
+  (display "  **** the PSYCHODELIC LANGUAGE CONSpiracy v0.33 ****") (newline)
+  (display "  Scislav Dercz 2016-17 @ Eindhoven, Gdynia, Alicante") (newline)
+  (newline)
+  (display "type &I-really-want-to-quit-this-CONSpiracy to quit") (newline)
   (newline)
   (repl 'READY. *initial-compendium* *initial-theorems*))

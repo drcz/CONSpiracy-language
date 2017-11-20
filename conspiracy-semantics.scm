@@ -176,14 +176,24 @@
       [('&strcat . _) (error `(&strcat expects 2 string arguments))]
 
       [('&substr (? string? s) (? numeral? from))
-       (substring s from)]
+       (if (or (> from (string-length s)) (< from 0)) "" (substring s from))]
       [('&substr (? string? s) (? numeral? from) (? numeral? to))
-       (substring s from to)]
+       (let ([len (string-length s)])
+         (if (or (> from len) (< from 0) (< to from))
+             ""
+             (substring s from (min len to))))]
       [('&substr . _)
        (error `(&substr expects 1 string followed by 1 or 2 numeral arguments))]
 
       [('&strlen (? string? s)) (string-length s)]
-      [('&strlen . _) (error `(&strlen expects 1 string argument))]
+      [('&strlen . _) (error '(&strlen expects 1 string argument))]
+
+      [('&num2str (? numeral? n)) (number->string n)]
+      [('&num2str . _) (error '(&num2str expects 1 numeral argument))]
+
+      [('&str2num (? string? s)) ;;; i have no idea what i'm doing.
+       (inexact->exact (floor (or (string->number s) 0)))]
+      [('&str2num . _) (error '(&str2num expects 1 string argument))]
 
       [('&display e) (begin (write e) (newline) e)] ;;; super-dirty ;)
 
@@ -336,4 +346,6 @@
     [% . &mod]
     [++ . &strcat]
     [substr . &substr]
-    [strlen . &strlen]))
+    [strlen . &strlen]
+    [num<-str . &str2num]
+    [str<-num . &num2str]))

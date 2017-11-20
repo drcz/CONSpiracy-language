@@ -1,0 +1,105 @@
+;;; let's talk about sentential calculus...
+;;; we will use super-simple notation with fixed arities.
+
+(def formula? (phi [((? atom?)) #t]
+                 [(('not f)) (formula? f)]
+                 [(('and f f*)) (and (formula? f) (formula? f*))]
+                 [(('or f f*)) (and (formula? f) (formula? f*))]
+                 [_ #f]))
+[e.g. (formula? '(or (not q) p)) ===> #t]
+
+(def atomic? (phi [((? atom?)) #t]
+                [(('not (? atom?))) #t]
+                [_ #f]))
+
+(def big-conjunction? (phi [((? atomic?)) #t]
+                         [(('and (? atomic?) (? big-conjunction?))) #t]
+                         [_ #f]))
+[e.g. (big-conjunction? '(and p (and (not q) (and r s)))) ===> #t]
+
+(def dnf? (phi [((? big-conjunction?)) #t]
+             [(('or (? big-conjunction?) (? dnf?))) #t]
+             [_ #f]))
+[e.g. (dnf? '(or (and p q) (or (and (not p) q) (and p (not q))))) ===> #t]
+[e.g. (dnf? '(or (not (and p q)) (not p))) ===> #f]
+
+;;; now the task is to convert any formula to dnf form. easy!
+;;; below capital letters stand for arbitrary formulas, and two constants
+;;; 'V and 'F for tautology and contradiction resp.
+;;; mind the ordering of rewrite rules -- first conjunctions, then disjunctions.
+(def norm
+     (phi [(('and P ('or Q R))) ;; left-distributivity
+         (let ([P* (norm P)] [Q* (norm Q)] [R* (norm R)])
+           `(or (and ,P* ,Q*) (and ,P* ,R*)))]
+
+        [(('and ('or P Q) R)) ;; right-distributivity
+         (let ([P* (norm P)] [Q* (norm Q)] [R* (norm R)])
+           `(or (and ,P* ,R*) (and ,Q* ,R*)))]
+
+        [(('and ('and P Q) ('and R S))) ;; de-balancing, because of our notation
+         `(and ,(norm P) (and ,(norm Q) (and ,(norm R) ,(norm S))))]
+
+        [(('and ('and P Q) R)) ;; turning, as above...
+         `(and ,(norm P) (and ,(norm Q) ,(norm R)))]
+
+        [(('and P ('not P))) 'F] ;; propagating contradictions...
+        [(('and ('not P) P)) 'F]
+        [(('and P 'F)) 'F]
+        [(('and 'F P)) 'F]
+
+        [(('and 'V P)) (norm P)] ;; ...and tautologies
+        [(('and P 'V)) (norm P)]
+        [(('and P P)) (norm P)]
+
+        [(('and P Q)) ;; "descending"
+         `(and ,(norm P) ,(norm Q))]
+
+        [(('or ('or P Q) ('or R S))) ;; de-balancing as well...
+         `(or ,(norm P) (or ,(norm Q) (or ,(norm R) ,(norm S))))]
+
+        [(('or ('or P Q) R)) ;; ...and turning
+         `(or ,(norm P) (or ,(norm Q) ,(norm R)))]
+
+        [(('or P ('not P))) 'V] ;; propagating tautologies...
+        [(('or ('not P) P)) 'V]
+        [(('or P 'V)) 'V]
+        [(('or 'V P)) 'V]
+
+        [(('or 'F P)) (norm P)] ;; ...and contradictions
+        [(('or P 'F)) (norm P)]
+        [(('or P P)) (norm P)]
+
+        [(('or P Q)) ;; and descending
+         `(or ,(norm P) ,(norm Q))]
+
+        [(('not ('and P Q))) ;; deMorgan's law
+         `(or ,(norm `(not ,P) ) ,(norm `(not ,Q)))]
+
+        [(('not ('or P Q))) ;; deMorgan's law
+         `(and ,(norm `(not ,P) ) ,(norm `(not ,Q)))]
+
+        [(('not ('not P))) (norm P)] ;; exluded middle (not very Intuitive ;))
+
+        [(f) f]))
+
+;;; now apply these normalizations greedily
+(def dnfized (phi [(formula) (let ([formula* (norm formula)])
+                             (if (= formula formula*)
+                                 formula*
+                                 (dnfized formula*)))]))
+
+[e.g. (dnfized '(and (or p q) r)) ===> (or (and p r) (and q r))]
+[e.g. (dnf? (dnfized '(and (or p q) r))) ===> #t]
+[e.g. (dnfized '(and (not (or p q)) r)) ===> (and (not p) (and (not q) r))]
+
+[e.g. (dnfized '(and (not (and p q)) r))
+      ===> (or (and (not p) r) (and (not q) r))]
+
+[e.g. (dnfized '(and (not p) (or p q))) ===> (and (not p) q).
+[e.g. (dnfized '(and (not (or p q)) (or p q))) ===> F]
+        
+;;; pretty sure this can be done simplier.
+
+;;; also mind it does not always propagate contradictions, eg
+[e.g. (dnfized '(and (not (or p q)) (or p q))) ===> (and (not p) (and (not q) p))]
+;;; but oh well -- maybe next time we'll come with more elaborate rewrite system.

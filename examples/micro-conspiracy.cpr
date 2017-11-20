@@ -1,0 +1,86 @@
+;;; This is µCONSpiracy -- a subset of CONSpiracy, implemented in itself.
+;;; we use it in studying possibilities of aggresive compilation.
+
+;;; TODO some error msgs + review (tbh this is an old compendium, but seems ok)
+
+(def value
+     (phi [(()                  _ _   ) ()]
+        [(('&CLOSURE cs cenv) _ _   ) `(&CLOSURE ,cs ,cenv)]
+        [(('quote e)          _ _   ) e]
+        [(('quasiquote e)   env comp) (qq-value e env comp)]
+        [(('phi . cs)         env _   ) `(&CLOSURE ,cs ,env)]
+        [((rator . rands)   env comp)
+         (app-value (value rator env comp)
+                    (map (phi [(exp) (value exp env comp)])
+                         rands)
+                    comp)]
+        [(sym env comp) (bound sym (concat env comp))]))
+
+(def qq-value
+     (phi [(('unquote e) env comp) (value e env comp)]
+        [((h . t)      env comp) `(,(qq-value h env comp)
+                                   . ,(qq-value t env comp))]
+        [(sth          _   _   ) sth]))
+
+(def app-value
+     (phi [(('&CLOSURE cs cenv) args comp) (first-match cs args cenv comp)]))
+
+(def first-match
+     (phi [(((pattern form) . cs) args env comp)
+         ((phi [('NO-MATCH) (first-match cs args env comp)]
+             [(binding  ) (value form (concat binding env) comp)])
+          (matching pattern args ()))]))
+
+(def matching
+     (phi [('_         _        binding) binding]
+        [(()         ()       binding) binding]
+        [(()         _        _      ) 'NO-MATCH]
+        [(('quote e) e        binding) binding]
+        [(('quote e) _        _      ) 'NO-MATCH]
+        [((p . ps)   (f . fs) binding)
+         ((phi [('NO-MATCH) 'NO-MATCH]
+             [(binding*)  (matching ps fs binding*)])
+          (matching p f binding))]
+        [(var        form     binding)
+         ((phi [('UNDEFINED) `([,var . ,form] . ,binding)]
+             [(form*)      ((phi [(x x) binding]
+                               [(x y) 'NO-MATCH])
+                            form form*)])
+          (bound var binding))]
+        [(_          _        _      ) 'NO-MATCH]))
+
+(def bound
+     (phi [(sym ()               ) 'UNDEFINED]
+        [(sym ((sym . val) . _)) val]
+        [(sym (_ . env)        ) (bound sym env)]))            
+
+(def map
+     (phi [(_ ()      ) ()]
+        [(f (x . xs)) `(,(f x) . ,(map f xs))]))
+
+(def concat
+     (phi [(()       ys) ys]
+        [((x . xs) ys) `(,x . ,(concat xs ys))]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(def interpreter
+     (phi [(compendium expr) (int compendium expr ())]))
+
+(def int
+     (phi [(() expr comp) (value expr () comp)]
+        [((('def s e) . cs) expr comp)
+         (int cs expr `([,s . ,(value e () comp)] . ,comp))]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; so now you can conspire while you conspire, or sth...
+
+[e.g.
+ (interpreter '[ (def foldr (phi [(o e ()) e]
+                               [(o e (x . xs)) (o x (foldr o e xs))]))
+                 (def map (phi [(f xs) (foldr (phi [(h t) `(,(f h) . ,t)]) () xs)]))
+                 (def cat (phi [(xs ys) (foldr (phi [(h t) `(,h . ,t)]) ys xs)]))
+                 (def trp (phi [(x) `(,x ,x ,x)]))
+                 (def test (phi [(xs) (cat xs (map trp xs))])) ]
+
+              '(test '(q w e)))
+ ===> (q w e (q q q) (w w w) (e e e))]

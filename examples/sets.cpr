@@ -1,0 +1,40 @@
+;;; HEY! you have to paste [some] stuff from lists.cpr first.
+;;; sorry, include/load is on the way...
+
+;;; TODO jesus it's so ugly
+(def append-map (phi [(f xs) (foldr (phi [(h t) (concat (f h) t)]) () xs)]))
+;;; a curried cons...
+(def push (phi [(x) (phi [(xs) `(,x . ,xs)])]))
+
+;;; a "cartesian product" of two lists:
+(def cartesian
+     (phi [(xs ys) (append-map (phi [(x) (map (phi [(y) `(,x ,y)]) ys)]) xs)]))
+
+[e.g. (cartesian '(q w e) '(1 2)) ===> ((q 1) (q 2) (w 1) (w 2) (e 1) (e 2))]
+
+
+;;; a "powerset" of a list:
+(def powerset
+     (phi [(()) '(())]
+        [((x . xs)) (let ([ps (powerset xs)])
+                      (concat (map (push x) ps) ps))]))
+
+[e.g. (powerset '(0 1 2)) ===> ((0 1 2) (0 1) (0 2) (0) (1 2) (1) (2) ())]
+
+(def subset?
+     (phi [(xs ys)
+         (every? (phi [(x) (member? x ys)]) xs)]))
+
+[e.g. (subset? '(1 3) '(0 1 2 3)) ===> #t]
+[e.g. (subset? '(2 4) '(0 1 2 3)) ===> #f]
+
+;;; all permutations of given list:
+(def perms
+     (phi [(()) '(())]
+        [(xs) (append-map (phi [(x) (map (push x)
+                                       (perms (delete x xs)))])
+                          xs)]))
+
+[e.g. (perms '(0 1 2)) ===> ((0 1 2) (0 2 1) (1 0 2) (1 2 0) (2 0 1) (2 1 0))]
+
+;;; TBC

@@ -1,0 +1,105 @@
+;;; classical operations on lists.
+;;; TODO more e.g. forms.
+
+(def pair? (phi [((_ . _)) #t]
+              [_ #f]))
+
+[e.g. (pair? '(a . b)) ===> #t]
+[e.g. (pair? '(q w e)) ===> #t]
+[e.g. (pair? 'an-atom) ===> #f]
+
+(def list? (phi [(()) #t]
+              [((x . xs)) (list? xs)]
+              [_ #f]))
+
+[e.g. (list? '(q w e)) ===> #t]
+[e.g. (list? '(a . b)) ===> #f]
+
+
+(def cons (phi [(car cdr) `(,car . ,cdr)])) ; :D
+(def first (phi [((x . _)) x]))
+(def rest (phi [((_ . x)) x]))
+
+[thm. (=> (pair? x) (= x (cons (first x) (rest x))))]
+[thm. (= x (first (cons x y)))]
+[thm. (= y (rest (cons x y)))]
+
+
+(def nth (phi [(0 (x . _)) x]
+            [(n (_ . xs)) (nth (- n 1) xs)]
+            [(n ()) #f]))
+[e.g. (nth 3 '(q w e r t)) ===> r]
+
+(def take (phi [(0 _) ()]
+             [(n (x . xs)) `(,x . ,(take (- n 1) xs))]))
+
+(def drop (phi [(0 xs) xs]
+             [(n (x . xs)) (drop (- n 1) xs)]))
+
+[e.g. (take 3 '(q w e r t y)) ===> (q w e)]
+[e.g. (drop 3 '(q w e r t y)) ===> (r t y)]
+
+[thm. (=> (list? xs) (= xs (concat (take n xs) (drop n xs))))]
+
+
+(def foldr (phi [(_ e ()) e]
+              [(op e (x . xs)) (op x (foldr op e xs))]))
+
+(def foldl (phi [(op e ()) e]
+              [(op e (x . xs)) (foldl op (op e x) xs)]))
+
+
+(def concat (phi [(xs ys) (foldr cons ys xs)]))
+[thm. (= (concat (concat xs ys) za) (concat xs (concat ys zs)))]
+
+(def map (phi [(f xs) (foldr (phi [(h t) `(,(f h) . ,t)]) () xs)]))
+
+(def length (phi [(xs) (foldr (phi [(_ t) (+ 1 t)]) 0 xs)]))
+
+(def filter (phi [(p? xs) (foldr (phi [((? p? h) t) `(,h . ,t)]
+                                  [(_ t) t])
+                               () xs)]))
+
+[thm. (= (length xs) (length (map f xs)))]
+[thm. (= (+ (length xs) (length ys)) (length (concat xs ys)))]
+[thm. (<= (length (filter p xs)) (length xs))]
+
+
+(def any? (phi [(p? xs) (foldr (phi [(h t) (or (p? h) t)]) #f xs)]))
+(def every? (phi [(p? xs) (foldr (phi [(h t) (and (p? h) t)]) #t xs)]))
+
+(def sum (phi [(xs) (foldr + 0 xs)]))
+(def product (phi [(xs) (foldr * 1 xs)]))
+
+
+(def reverse (phi [(xs) (foldl (phi [(acc e) `(,e . ,acc)]) () xs)]))
+[thm. (=> (list? x) (= x (reverse (reverse x))))]
+
+(def member? (phi [(_ ()) #f]
+                [(x (x . _)) #t]
+                [(x (_ . xs)) (member? x xs)]))
+
+[e.g. (member? 'x '(q w x y e z)) ===> #t]
+[e.g. (member? 'a '(q w x y e z)) ===> #f]
+
+
+(def delete (phi [(_ ()) ()]
+               [(x (x . xs)) xs]
+               [(x (y . xs)) `(,y . ,(delete x xs))]))
+
+[e.g. (delete 'x '(q w x y e)) ===> (q w y e)]
+
+(def delete-all (phi [(_ ()) ()]
+                   [(x (x . xs)) (delete-all x xs)]
+                   [(x (y . xs)) `(,y . ,(delete-all x xs))]))
+
+[e.g. (delete 'x '(q w x y x e)) ===> (q w y x e)]
+[e.g. (delete 'a '(q w x y x e)) ===> (q w x y x e)]
+[e.g. (delete-all 'x '(q w x y x e)) ===> (q w y e)]
+
+;;; TODO: unfold...
+(def iota (phi [(n) (iota n 0)]
+             [(n n) ()]
+             [(n m) `(,m . ,(iota n (+ 1 m)))]))
+
+[e.g. (iota 10) ===> (0 1 2 3 4 5 6 7 8 9)]

@@ -1,0 +1,69 @@
+;;; a numerical-only variant of FCL. because all the previous examples were
+;;; operating on lists only, now the opposite -- use these "fake numerals",
+;;; "integers" instead. we represent truth with 1 and false with 0.
+
+;;; btw feel free to add more primitive operations in these examples, it is
+;;; super easy.
+
+(def error (phi [(msg) (&display msg)]))
+
+
+(def pair (phi [(() ()) ()]
+             [(() _) (error '(too many inputs!))]
+             [(_ ()) (error '(not enough inputs!))]
+             [((x . xs) (y . ys)) `([,x . ,y] . ,(pair xs ys))]))
+
+(def assoc (phi [(var ()) ()]
+              [(var ([var . val] . _)) val]
+              [(var (_ . env)) (assoc var env)]))
+
+(def update (phi [(var exp ()) `([,var . ,exp])]
+               [(var exp ([var . _] . env)) `([,var . ,exp] . ,env)]
+               [(var exp (ve . env)) `(,ve . ,(update var exp env))]))
+
+
+(def run-block (phi [((['let v e] . block) env prog)
+                   (run-block block (update v (eval e env) env) prog)]
+                  [((['if e label label*]) env prog)
+                   (if (= (eval e env) 0)
+                       (run-block (assoc label* prog) env prog)
+                       (run-block (assoc label prog) env prog))]
+                  [((['goto label]) env prog)
+                   (run-block (assoc label prog) env prog)]
+                  [((['return e]) env prog)
+                   (eval e env)]))
+
+(def eval (phi [((? numeral? n) env) n]
+             [((? atom? v) env) (assoc v env)]
+             [(('+ e e*) env) (+ (eval e env) (eval e* env))]
+             [(('- e e*) env) (- (eval e env) (eval e* env))]
+             [(('* e e*) env) (* (eval e env) (eval e* env))]
+             [(('/ e 0) env) 0] ;; XD
+             [(('/ e e*) env) (/ (eval e env) (eval e* env))]
+             [(('% e 0) env) 0] ;; :o
+             [(('% e e*) env) (% (eval e env) (evla e* env))]
+             [(('= e e*) env) (if (= (eval e env) (eval e* env)) 1 0)]
+             [(('< e e*) env) (if (< (eval e env) (eval e* env)) 1 0)]
+             [wtf? (error `(unrecognized expression ,wtf?))]))
+
+(def run (phi [(program . inputs)
+             (let ([(input-names main . blocks) program]
+                   [init-env (pair input-names inputs)])
+               (run-block (assoc main blocks) init-env blocks))]))
+
+(def example1
+     '( (m n)
+        power
+        
+        (power [let result 1]
+               [goto test])
+
+        (test [if (= n 0) end step])
+
+        (step [let result (* result m)]
+              [let n (- n 1)]
+              [goto test])
+
+        (end [return result]) ))
+
+[e.g. (run example1 5 3) ===> 125]

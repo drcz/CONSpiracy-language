@@ -229,10 +229,11 @@
       [('&sub (? numeral? n) (? numeral? m)) (- n m)]
       [('&sub . _) (error `(&sub expects 2 numeral arguments))]
 
-      [('&div (? numeral? n) 0) (error `(division by 0 is meaningess))]
+      [('&div (? numeral? n) 0) (error `(division by 0 is meaningless))]
       [('&div (? numeral? n) (? numeral? m)) (quotient n m)]
       [('&div . _) (error `(&div expects 2 numeral arguments))]
 
+      [('&mod (? numeral? n) 0) (error `(modulo 0 is meaningless))]
       [('&mod (? numeral? n) (? numeral? m)) (modulo n m)]
       [('&mod . _) (error `(&mod expects 2 numeral arguments))]
 

@@ -43,7 +43,7 @@
 (assert-eq? (EVAL ''(q w e) '() ERROR) '(q w e))
 
 (assert-eq? (EVAL '(* (+ 2 3) 5) DEFS ERROR) '25)
-(assert-eq? (EVAL '(/ 12 0) DEFS (lambda (m) m)) '(division by 0 is meaningess))
+(assert-eq? (EVAL '(/ 12 0) DEFS (lambda (m) m)) '(division by 0 is meaningless))
 (assert-eq? (EVAL '(/ 12 3) DEFS ERROR) '4)
 (assert-eq? (EVAL '(- (% 3 5) (% -3 5)) DEFS ERROR) '1)
 

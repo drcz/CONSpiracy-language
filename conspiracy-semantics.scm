@@ -262,6 +262,7 @@
 
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
   ;;; one more thing, desugaring the syntax {perhaps not the best choice}
+  ;;; this is penalty for not having macros in the laguage...
   (define (desugared form)
     (match form
       ;;; and/or/not are just sugar for ifs (TODO: for now?)
@@ -283,6 +284,12 @@
        (fold-right (lambda ((pat frm*) bs) `((phi [(,pat) ,bs]) ,(desugared frm*)))
                    (desugared f*)
                    bnds*)]
+
+      ;;; and so are match-forms...
+      [('match f* . cases*)
+       `((phi . ,(fold-right (lambda ((pat frm*) cs) `([(,pat) ,(desugared frm*)] . ,cs))
+                           '()
+                           cases*)) ,(desugared f*))]
       
       ;;; propagate desugaring into subforms...
       [(? phi-form?)
@@ -325,6 +332,10 @@
                                                (and a b c))))
         ===> `(q w e (not important)
                ,[(phi [((y . ys)) [(phi [(x) (if a (if b c #f) #f)]) (f x)]]) x])]
+
+  #;[e.g. (desugared '(match (f x) [('a a) a] [('b a b) `(,a b ,b)]))
+        ===> [(phi [(('a a)) a]
+                  [(('b a b)) `(,a b ,b)]) (f x)]]
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
    ;;; ...and finally:

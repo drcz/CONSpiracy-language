@@ -32,7 +32,6 @@
                                  ;;; display form for dbg (compiler will ignore it)
                                  &display)))
 
-
 (define (constant? x)
   (or (null? x)
       (numeral? x)
@@ -45,7 +44,6 @@
 
 [e.g. (identifier? 'identifier)]
 [e.g. (not (identifier? '&closure))]
-
 
 (define (pattern? x)
   (match x
@@ -60,12 +58,12 @@
 
 [e.g. (pattern? '('concat (x . xs) ys))]
 
-
 (define (form? x)
   (or (constant? x)
       (identifier? x)
       (phi-form? x)
       (let-form? x)
+      (match-form? x)
       (quote-form? x)
       (quasiquote-form? x)
       (if-form? x)
@@ -78,9 +76,10 @@
 (define (let-form? x)
   (and-let* ([('let [(? pattern?) (? form?)] ... (? form?)) x])))
 
+(define (match-form? x)
+  (and-let* ([('match (? form?) [(? pattern?) (? form?)] ...) x])))
 
 (define (quote-form? x) (and-let* ([('quote (? expression?)) x])))
-
 
 (define (quasiquote-form? x)
   (and-let* ([('quasiquote qqe) x])
@@ -91,13 +90,11 @@
         [(? expression?) #t]
         [_ #f]))))
 
-
 (define (if-form? x) (and-let* ([('if (? form?) (? form?) (? form?)) x])))
 
 (define (and-form? x) (and-let* ([('and (? form?) ...) x])))
 (define (or-form? x) (and-let* ([('or (? form?) ...) x])))
 (define (not-form? x) (and-let* ([('not (? form?)) x])))
-
 
 (define (application? x)
   (and (pair? x)
@@ -111,7 +108,6 @@
 [e.g. (application? '(f x))]
 [e.g. (application? '(f x y z))]
 
-
 [e.g. (phi-form? '(phi [(()       ys) ys]
                        [((x . xs) ys) `(,x . ,(cat xs ys))]))]
 
@@ -121,8 +117,11 @@
                         [(current . rest) remaining])
                     (g current x)))]
 
+[e.g. (match-form? '(match (f x)
+                      [('qwe a) `(,a ,a)]
+                      [('asd a b) (g b b a)]))]
+      
 [e.g. (quasiquote-form? '`(3 + 5 = ,(+ 3 5)))]
-
 
 
 (define (definition? x) (and-let* ([('def (? identifier?) (? form?)) x])))
@@ -134,12 +133,10 @@
 (define (example? x) (and-let* ([('e.g. (? form?) '===> (? expression?)) x])))
 [e.g. (example? '(e.g. (concat '(q w e) '(a s d)) ===> (q w e a s d)))]
 
-
 (define (entry? x)
   (or (definition? x)
       (theorem? x)
       (example? x)))
-
 
 (define compendium? (list-of entry?))
 

@@ -86,7 +86,7 @@
 ;; ...
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(pretty-print '(testing basic phi-forms and lets))
+(pretty-print '(testing basic phi-forms, lets and matches))
 
 (assert (closure? (EVAL '(phi [(x) x]) '() ERROR)))
 (assert-eq? (EVAL '((phi [(x) (* x x)]) (+ 2 3)) DEFS ERROR) '25)
@@ -111,6 +111,12 @@
 
 (assert-eq? (EVAL '((phi [(x (? (phi [(y) (not (= x y))]))) 'neq]
                          [_ 'eq]) 3 3) DEFS ERROR) 'eq)
+
+(assert-eq? (EVAL '(match `(hey ,(+ 2 3))
+                     [('ho _) 'boo]
+                     [('hi _) 'boo]
+                     [('hey n) n])
+                  DEFS ERROR) '5)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (pretty-print '(testing tricky expressions))

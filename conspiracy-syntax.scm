@@ -98,6 +98,7 @@
 
 (define (application? x)
   (and (pair? x)
+       (not (member? (first x) '(let match phi quote quasiquote if and or not)))
        (or (primop? (first x)) ;; TODO: sure?
            (not (constant? (first x))))
        (or (form? (cdr x))

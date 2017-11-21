@@ -1,0 +1,107 @@
+;;; S-graph as described in Gluck and Klimov's paper from 1993 (...)
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; little helpers to make it self-contained...
+(def list? (phi ([()] #t)
+              ([(_ . xs)] (list? xs))
+              ([_] #f)))
+
+(def foldr (phi ([_ e ()] e)
+              ([op e (x . xs)] (op x (foldr op e xs)))))
+
+(def map (phi ([f xs] (foldr (phi ([h t] `(,(f h) . ,t))) () xs))))
+
+(def every (phi ([p? xs] (foldr (phi ([h t] (and (p? h) t))) #t xs))))
+
+(def list-of (phi ([t?] (phi ([xs] (and (list? xs) (every t? xs)))))))
+
+(def zip (phi ([() _] ())
+            ([_ ()] ())
+            ([(x . xs) (y . ys)] `((,x . ,y) . ,(zip xs ys)))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; s-graph's syntax
+(def var? atom?)
+(def fname? atom?)
+
+(def val? (phi ([('quote _)] #t)
+             ([_] #f)))
+
+(def arg? (phi ([a] (or (var? a) (val? a)))))
+
+(def exp? (phi ([(? arg?)] #t)
+             ([('CONS (? exp?) (? exp?))] #t)
+             ([_] #f)))
+
+(def cntr? (phi ([('CONS? (? arg?) (? var?) (? var?))] #t)
+              ([('EQ? (? arg?) (? arg?))] #t)
+              ([_] #f)))
+
+(def tree? (phi ([('LET (? var?) (? exp?) (? tree?))] #t)
+              ([('IF (? cntr?) (? tree?) (? tree?))] #t)
+              ([('CALL (? fname?) (? list-of arg?))] #t)
+              ([(? exp?)] #t)
+              ([_] #f)))
+
+(def def? (phi ([('DEF (? fname?) (? (list-of var?)) (? tree?))] #t)
+             ([_] #f)))
+
+(def prog? (phi ([p] (and (list? p) (every def? p)))))
+
+(def example-prog ;;; naive sub-string matcher
+     '[ (DEF match [p s] (CALL loop [p s p s]))
+        
+        (DEF loop [p s pp ss] (IF (CONS? p ph pt)
+                                  (IF (CONS? s sh st)
+                                      (IF (EQ? ph sh)
+                                          (CALL loop [pt st pp ss])
+                                          (CALL next [pp ss]))
+                                      'Mismatch)
+                                  'Match))
+
+        (DEF next [p s] (IF (CONS? s sh st)
+                            (CALL loop [p st p st])
+                            'Mismatch)) ])
+
+[e.g. (prog? example-prog) ===> #t]
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; s-graph's interpreter
+(def get-def (phi ([fname ()] #f)
+                ([fname (['DEF fname vs tree] . _)] `(DEF ,fname ,vs ,tree))
+                ([fname (_ . prog)] (get-def fname prog))))
+
+(def lookup (phi ([var ()] var)
+               ([var ([var . exp] . _)] exp)
+               ([var (_ . env)] (lookup var env))))
+
+(def subst (phi ([(? var? v) env] (lookup v env))
+              ([('CONS h t) env] `(CONS ,(subst h env) ,(subst t env)))
+              ([x _] x)))
+
+(def int (phi ([('CALL f as) env prog] (let ([('DEF _ vs t) (get-def f prog)]
+                                           [as* (map (phi ([e] (subst e env))) as)]
+                                           [env* (zip vs as*)])
+                                       (int t env* prog)))
+            ([('LET v x t) env prog] (int t `([,v . ,(subst x env)] . ,env) prog))
+            ([('IF c t t*) env prog] (match (cntr c env)
+                                       [('TRUE env*) (int t env* prog)]
+                                       [('FALSE env*) (int t* env* prog)]))
+            ([x env prog] (subst x env))))
+
+(def cntr (phi ([('EQ? x y) env] (match `(,(subst x env) ,(subst y env))
+                                 [(('quote a) ('quote a)) `(TRUE ,env)]
+                                 [(('quote _) ('quote _)) `(FALSE ,env)]))
+             ([('CONS? x h t) env] (match (subst x env)
+                                     [('CONS he te) `(TRUE ([,h . ,he]
+                                                            [,t . ,te] . ,env))]
+                                     [('quote _) `(FALSE ,env)]))))
+
+[e.g. (int '(CALL match [(CONS 'A (CONS 'A (CONS 'B 'NIL)))
+                         (CONS 'Q (CONS 'W (CONS 'A (CONS 'A (CONS 'B 'NIL)))))])
+           () example-prog)
+      ===> 'Match]
+
+[e.g. (int '(CALL match [(CONS 'A (CONS 'Q (CONS 'Q 'NIL)))
+                         (CONS 'Q (CONS 'W (CONS 'A (CONS 'A (CONS 'B 'NIL)))))])
+           () example-prog)
+      ===> 'Mismatch]

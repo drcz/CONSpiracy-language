@@ -17,6 +17,7 @@ plus some sketchy implementations of various programming languages (each one wri
 - [micro-conspiracy.cpr](micro-conspiracy.cpr) -- µCONSpiracy, a subset of CONSpiracy implemented in itself
 - [post-machine.cpr](post-machine.cpr) -- right/left, mark/erase, jump [un]conditionally
 - [bf-to-c.cpr](bf-to-c.cpr) -- super-primitive brain**FUCK** to C compiler
+- [s-graph.cpr](s-graph.scp) -- /an experiment in different style/ Gluck&Klimov's tiny language from 1993 paper ``Occam's razor in metacomputation''
 
 and some math:
 - [peano.cpr](peano.cpr) -- toying with Peano numerals

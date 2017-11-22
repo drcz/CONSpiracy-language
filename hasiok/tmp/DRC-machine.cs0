@@ -1,0 +1,50 @@
+#;(-- the DRC machine in algorithmic language CONSequence --)
+
+#;( -- because cats are cute -- )
+[('cat ()       ys K) (@ `(,K ,ys))]
+[('cat (x . xs) ys K) (@ `(cat ,xs ,ys (catK ,x ,K)))]
+[(('catK x k) v) (@ `(,k (,x . ,v)))]
+
+#;( -- ops on dictionary (the environment) -- )
+[('name k v dict K) (@ `(,K ([,k . ,v] . ,dict)))]
+
+[('forget k ([k . _] . dict) K) (@ `(,K dict))]
+[('forget k (kv . dict)      K) (@ `(forget k dict (forgetK ,kv ,K)))]
+[(('forgetK kv K) x) (@ `(,K `(,kv . ,x)))]
+
+[('lookup k ([k . v] . _) K) (@ `(,K ,v))]
+[('lookup k (_ . dict)    K) (@ `(lookup ,k ,dict ,K))]
+
+#;( -- the machine proper -- )
+[('run program inputs) (@ `(step* () ,inputs ,program))]
+
+#;(- memory/store aka operating D -)
+[('step* D (e . R) (['NAME n]   . C)) (@ `(name ,n ,e ,D (step*DK ,R ,C)))]
+[('step* D (e . R) (['FORGET n] . C)) (@ `(forget ,n ,e ,D (step*DK ,R ,C)))]
+[('step* D R       (['LOOKUP n] . C)) (@ `(lookup ,n ,D (step*RK ,D ,C)))]
+
+#;(- constants and operators aka operating on R -)
+[('step* D R (['CONST e] . C)) (@ `(step* ,D (,e . ,R) ,C))]
+[('step* D R (['PROC p]  . C)) (@ `(step* ,D (,p . ,R) ,C))]
+
+[('step* D (h t . R)     (['CONS] . C)) (@ `(step* ,D ((,h . ,t) . ,R) ,C))]
+[('step* D ((h . t) . R) (['CAR] . C)) (@ `(step* ,D (,h . ,R) ,C))]
+[('step* D ((h . t) . R) (['CDR] . C)) (@ `(step* ,D (,t . ,R) ,C))]
+
+[('step* D (e e . R)     (['EQ?] . C)) (@ `(step* ,D (T  . ,R) ,C))]
+[('step* D (_ _ . R)     (['EQ?] . C)) (@ `(step* ,D (() . ,R) ,C))]
+[('step* D ((h . t) . R) (['ATOM?] . C)) (@ `(step* ,D (() . ,R) ,C))]
+[('step* D (_       . R) (['ATOM?] . C)) (@ `(step* ,D (T  . ,R) ,C))]
+
+#;(- control flow aka operating on C -)
+[('step* D (() . R) (['SELECT p p*] . C)) (@ `(cat ,p* ,C (step*CK ,R ,D)))]
+[('step* D (_  . R) (['SELECT p p*] . C)) (@ `(cat ,p ,C (step*CK ,R ,D)))]
+[('step* D (p . R) (['APPLY] . C)) (@ `(cat ,p ,C (step*CK ,R ,D)))]
+
+#;(- the three little continuations -)
+[(('step*DK R C) D) (@ `(step* ,D ,R ,C))]
+[(('step*RK D C) R) (@ `(step* ,D ,R ,C))]
+[(('step*CK R D) C) (@ `(step* ,D ,R ,C))]
+
+#;(- halting? not a problem! -)
+[('step* D (e . R) ()) e]

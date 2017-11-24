@@ -136,6 +136,9 @@
       [('&atom? x) (not (pair? x))]
       [('&atom? . _) (error `(&atom? expects 1 argument))]
 
+      [('&sym? x) (symbol? x)]
+      [('&sym? . _) (error `(&sym? expects 1 argument))]
+
       [('&str? x) (string? x)]
       [('&str? . _) (error `(&str? expects 1 argument))]
 
@@ -345,6 +348,7 @@
 (define (default-initial-environment) ;; XD
   `([atom? . &atom?]
     [string? . &str?]
+    [symbol? . &sym?]
     [numeral? . &num?]
     [truth-value? . &tv?]
     [closure? . &closure?]

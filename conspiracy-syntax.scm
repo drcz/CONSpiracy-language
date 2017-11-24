@@ -23,7 +23,7 @@
 [e.g. (not (expression? (lambda (x) x)))]
 [e.g. (not (expression? #(1 2 3)))]
 
-(define (primop? x) (member? x '(&atom? &str? &num? &tv? &closure?
+(define (primop? x) (member? x '(&atom? &str? &sym? &num? &tv? &closure?
                                  &eq? 
                                  &lt? &add &mul &sub &div &mod
                                  &strcat &substr &strlen

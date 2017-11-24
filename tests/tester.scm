@@ -58,10 +58,9 @@
 (assert-eq? (EVAL '(substr "qwertyu" -1) DEFS ERROR) '"")
 (assert-eq? (EVAL '(substr "qwertyu" 3 2) DEFS ERROR) '"")
 
-
 (assert-eq? (EVAL '`(2 + 3 = ,(+ 2 3)) DEFS ERROR) '(2 + 3 = 5))
 
-(assert-eq? (EVAL '(if (= 2 3) 'wat? 'gucci) DEFS ERROR) 'gucci)
+(assert-eq? (EVAL '(if (= 0 1) 'wat? 'gucci) DEFS ERROR) 'gucci)
 
 (assert-eq? (EVAL '(or (= 2 3) (= 3 7) (= 6 6)) DEFS ERROR) '#t)
 (assert-eq? (EVAL '(or (= 2 3) (= 3 7) (= 6 9)) DEFS ERROR) '#f)
@@ -77,6 +76,14 @@
 (assert-eq? (EVAL '(str<-num "q") DEFS (lambda (m) m))
             '(&num2str expects 1 numeral argument))
 
+(assert-eq? (EVAL '(numeral? 23) DEFS ERROR) '#t)
+(assert-eq? (EVAL '(numeral? 'qwe) DEFS ERROR) '#f)
+(assert-eq? (EVAL '(symbol? 'qwe) DEFS ERROR) '#t)
+(assert-eq? (EVAL '(string? "qwe") DEFS ERROR) '#t)
+(assert-eq? (EVAL '(closure? (phi [(x) x])) DEFS ERROR) '#t)
+(assert-eq? (EVAL '(truth-value? #t) DEFS ERROR) '#t)
+(assert-eq? (EVAL '(truth-value? '#t) DEFS ERROR) '#t)
+(assert-eq? (EVAL '(truth-value? (= 0 1)) DEFS ERROR) '#t)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (pretty-print '(testing simple variable bindings))

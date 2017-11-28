@@ -10,15 +10,22 @@ some really silly examples:
 
 
 plus some sketchy implementations of various programming languages (each one written <1h and <100loc):
-- [mccarthy-lisp.cpr](mccarthy-lisp.cpr) -- a short lesson of history
-- [modern-lisp.cpr](modern-lisp.cpr) -- lexically scoping pure lisp
 - [fcl-numerical.cpr](fcl-numerical.cpr) -- a simple flowchart language
 - [post-machine.cpr](post-machine.cpr) -- right/left, mark/erase, jump [un]conditionally
 - [bf-to-c.cpr](bf-to-c.cpr) -- super-primitive brain**FUCK** to C compiler
-- [s-graph.cpr](s-graph.cpr) -- /an experiment in different style/ Gluck&Klimov's tiny language from 1993 paper ``Occam's razor in metacomputation''
-- [drc-machine.cpr](drc-machine.cpr) -- my stack machine to compile lisp[s] into
+
+- [mccarthy-lisp.cpr](mccarthy-lisp.cpr) -- a short lesson of history
+- [modern-lisp.cpr](modern-lisp.cpr) -- lexically scoping pure lisp
+
+- [drcz0.cpr](drcz0.cpr) -- dynamically scoped tiny lisp
+- [drc-machine.cpr](drc-machine.cpr) -- my good old stack machine
+- [drcz0->drc.cpr](drcz0->drc.cpr) -- a ridiculously tiny compiler from drcz0 to DRC
+
 - [micro-conspiracy.cpr](micro-conspiracy.cpr) -- µCONSpiracy, a subset of CONSpiracy implemented in itself
-- [micro-consequence.cpr](micro-consequence.cpr) -- µCONSequence, a tiny pattern-matching language /intermediate form for µCONSpiracy/.
+- [micro-consequence.cpr](micro-consequence.cpr) -- µCONSequence, a tiny pattern-matching language /intermediate form for µCONSpiracy/. includes DRC machine implemented in µCONSequence!
+
+- [s-graph.cpr](s-graph.cpr) -- /an experiment in different style/ Gluck&Klimov's tiny language from 1993 paper ``Occam's razor in metacomputation''
+
 
 and some math:
 - [peano.cpr](peano.cpr) -- toying with Peano numerals

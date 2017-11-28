@@ -1,0 +1,80 @@
+;;; this is drcz0 to DRC compiler, from my 2012 thesis, just because it is
+;;; ridiculously simple. check out the paper for correctness proof. i don't
+;;; remember it, so can't guarantee the proof itself is correct though XD
+;;; well, it does break <the machine> on e.g.
+;;;  [ (def evil (lambda (f x) (f x))) (evil car '(q w)) ]
+;;; -- despite this one working in drcz0 interpreter. if using primops in
+;;; variable position is not wrong, it is at least evil.
+
+;;; this is the basic version, no tail-call optim. (left as an excercise!)
+
+(def apd (phi [(() ys) ys]
+            [((x . xs) ys) `(,x . ,(apd xs ys))]))
+
+(def apd-map (phi [(_ ()) ()]
+                [(f (x . xs)) (apd (f x) (apd-map f xs))]))
+
+(def rev (phi [(xs) (rev xs ())]
+            [(() sx) sx]
+            [((x . xs) sx) (rev xs `(,x . ,sx))]))
+
+(def member? (phi [(x ()) #f]
+                [(x (x . _)) #t]
+                [(x (_ . xs)) (member? x xs)]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(def l-block (phi [(_ ()) ()]
+                [(l (n . ns)) `([,l ,n] . ,(l-block l ns))]))
+
+(def primop? (phi [(x) (member? x '(car cdr cons eq? atom?))]))
+
+(def comp-expr (phi [(()) '([CONST ()])]
+                  [('T) '([CONST T])]
+                  [('car)   '([CAR])]
+                  [('cdr)   '([CDR])]
+                  [('cons)  '([CONS])]
+                  [('eq?)   '([EQ?])]
+                  [('atom?) '([ATOM?])]
+                  [(('quote e)) `([CONST ,e])]
+                  [((? symbol? s)) `([LOOKUP ,s])]
+                  [(('if p c a)) (apd (comp-expr p)
+                                      `([SELECT ,(comp-expr c)
+                                                ,(comp-expr a)]))]
+                  [(('lambda vs body)) `([PROC ,(apd (l-block 'NAME vs)
+                                               (apd (comp-expr body)
+                                                    (l-block 'FORGET vs)))])]
+                  [(('def v e)) (apd (comp-expr e) `([NAME ,v]))]
+                  [((f . as)) (apd (apd-map comp-expr (rev `(,f . ,as)))
+                                   (if (primop? f) () '([APPLY])))]))
+
+(def compile (phi [(program) (apd-map comp-expr program)]))
+
+;;; boom done.
+
+[e.g. (compile 
+       '[(def CAT (lambda (xs ys)
+                    (if (eq? xs ())
+                        ys
+                        (cons (car xs) (CAT (cdr xs) ys)))))
+         (CAT '(q w e) '(a s d))])
+      ===> ([PROC ([NAME xs]
+                   [NAME ys]
+                   [CONST ()]
+                   [LOOKUP xs]
+                   [EQ?]
+                   [SELECT ([LOOKUP ys])
+                           ([LOOKUP ys]
+                            [LOOKUP xs]
+                            [CDR]
+                            [LOOKUP CAT]
+                            [APPLY]
+                            [LOOKUP xs]
+                            [CAR]
+                            [CONS])]
+                   [FORGET xs]
+                   [FORGET ys])]
+            [NAME CAT]
+            [CONST (a s d)]
+            [CONST (q w e)] 
+            [LOOKUP CAT]
+            [APPLY])]

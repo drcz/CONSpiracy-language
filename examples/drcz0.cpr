@@ -1,0 +1,65 @@
+;;; this is a more-or-less a [subset of] lisp variant from my 2012 thesis.
+;;; /a super-crude lisp-1 with dynamic scoping (ewww!)/
+
+(def lookup (phi [(() _) ()]
+               [(((k . v) . _) k) v]
+               [((_ . binding) k) (lookup binding k)]))
+
+(def zip (phi ([() _] ())
+            ([_ ()] ())
+            ([(x . xs) (y . ys)] `((,x . ,y) . ,(zip xs ys)))))
+
+(def map (phi [(_ ()) ()]
+            [(f (x . xs)) `(,(f x) . ,(map f xs))]))
+
+(def apd (phi [(() ys) ys]
+            [((x . xs) ys) `(,x . ,(apd xs ys))]))
+
+
+(def primop? (phi [(x) (or (= x 'car)
+                         (= x 'cdr)
+                         (= x 'cons)
+                         (= x 'eq?)
+                         (= x 'atom?))]))
+
+(def eval
+     (phi [(() _) ()]
+        [('T _) 'T]
+        [((? primop? p) _) p]
+        [(('quote e) _) e]
+        [((? symbol? v) env) (lookup env v)]
+        [(('if p c a) env) (if (= (eval p env) ())
+                               (eval a env)
+                               (eval c env))]
+        [(('lambda vs body) _) `(lambda ,vs ,body)]
+        [(application env)
+         (match (map (phi [(e) (eval e env)]) application)
+           [('car (h . _)) h]
+           [('cdr (_ . t)) t]
+           [('cons h t) `(,h . ,t)]
+           [('eq? e e) 'T]
+           [('eq? _ _) ()]
+           [('atom? (_ . _)) ()]
+           [('atom? _) 'T]
+           [(('lambda vs body) . as) (eval body (apd (zip vs as) env))])]))
+
+(def run (phi [(program)
+             (run program ())]
+            [((('def name expr) . program*) env)
+             (run program* `([,name . ,(eval expr env)] . ,env))]
+            [((form) env)
+             (eval form env)]))
+
+
+[e.g. (run '[(def CAT (lambda (xs ys)
+                        (if (eq? xs ())
+                            ys
+                            (cons (car xs) (CAT (cdr xs) ys)))))
+             (def MAP (lambda (f xs)
+                        (if (eq? xs ())
+                            ()
+                            (cons (f (car xs)) (MAP f (cdr xs))))))
+             (def DUP (lambda (x) (cons x x)))
+             (def TEST (lambda (xs) (CAT xs (MAP DUP xs))))
+             (TEST '(q w e))])
+      ===> (q w e (q . q) (w . w) (e . e))]

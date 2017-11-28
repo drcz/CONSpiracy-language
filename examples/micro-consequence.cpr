@@ -197,3 +197,109 @@
 
 [e.g. (run '(@ `(apd (q w e) (r t y) id)) example-compendium)
       ===> (q w e r t y)]
+
+;;; slightly more ambicious example:
+(def substring-matcher
+     '( [('match p s) (@ `(m ,p ,s ,p ,s))]
+        
+        [('m ()       ss op os) 'TRUE]
+        [('m (p . pp) ss op os) (@ `(x ,p ,pp ,ss ,op ,os))]
+        
+        [('x p pp ()       op os) 'FALSE]
+        [('x p pp (p . ss) op os) (@ `(m ,pp ,ss ,op ,os))]
+        [('x p pp (q . ss) op os) (@ `(n ,op ,os))]
+
+        [('n op (s . ss)) (@ `(m ,op ,ss ,op ,ss))] ))
+
+[e.g. (run '(@ `(match (K U L A) (M A K U L A T U R A))) substring-matcher)
+      ===> TRUE]
+
+[e.g. (run '(@ `(match (K U R A) (M A K U L A T U R A))) substring-matcher)
+      ===> FALSE]
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; and this season's hit (cf drc-machine.cpr)...
+(def drc-machine
+ '( #;(-- the DRC machine in algorithmic language CONSequence --)
+
+#;( -- because cats are cute -- )
+[('cat ()       ys K) (@ `(,K ,ys))]
+[('cat (x . xs) ys K) (@ `(cat ,xs ,ys (catK ,x ,K)))]
+[(('catK x k) v) (@ `(,k (,x . ,v)))]
+
+#;( -- ops on dictionary (the environment) -- )
+[('name k v dict K) (@ `(,K ([,k . ,v] . ,dict)))]
+#;[('name k v dict K) (@ `(cat ,dict ([,k . ,v]) ,K))] ;; horror.
+
+[('forget k ([k . v] . dict)  K) (@ `(,K ,dict))]
+[('forget k ([k* . v] . dict) K) (@ `(forget ,k ,dict (forgetK [,k* . ,v] ,K)))]
+[(('forgetK [k . v] K) dict) (@ `(,K ([,k . ,v] . ,dict)))]
+
+[('lookup k ([k . v] . dict) K) (@ `(,K ,v))]
+[('lookup k ([q . v] . dict) K) (@ `(lookup ,k ,dict ,K))]
+
+#;( -- the machine proper -- )
+[('run program inputs) (@ `(step* () ,inputs ,program))]
+
+#;(- memory/store aka operating D -)
+[('step* D (e . R) (['NAME n]   . C)) (@ `(name ,n ,e ,D (step*DK ,R ,C)))]
+[('step* D R       (['FORGET n] . C)) (@ `(forget ,n ,D (step*DK ,R ,C)))]
+[('step* D R       (['LOOKUP n] . C)) (@ `(lookup ,n ,D (step*RK ,D ,R ,C)))]
+
+#;(- constants and operators aka operating on R -)
+[('step* D R (['CONST e] . C)) (@ `(step* ,D (,e . ,R) ,C))]
+[('step* D R (['PROC p]  . C)) (@ `(step* ,D (,p . ,R) ,C))]
+
+[('step* D (h t . R)     (['CONS] . C)) (@ `(step* ,D ((,h . ,t) . ,R) ,C))]
+[('step* D ((h . t) . R) (['CAR] . C)) (@ `(step* ,D (,h . ,R) ,C))]
+[('step* D ((h . t) . R) (['CDR] . C)) (@ `(step* ,D (,t . ,R) ,C))]
+
+[('step* D (e e . R)     (['EQ?] . C)) (@ `(step* ,D (T  . ,R) ,C))]
+[('step* D (e f . R)     (['EQ?] . C)) (@ `(step* ,D (() . ,R) ,C))]
+[('step* D ((h . t) . R) (['ATOM?] . C)) (@ `(step* ,D (() . ,R) ,C))]
+[('step* D (a       . R) (['ATOM?] . C)) (@ `(step* ,D (T  . ,R) ,C))]
+
+#;(- control flow aka operating on C -)
+[('step* D (() . R) (['SELECT p p*] . C)) (@ `(cat ,p* ,C (step*CK ,D ,R)))]
+[('step* D (t  . R) (['SELECT p p*] . C)) (@ `(cat ,p ,C (step*CK ,D ,R)))]
+[('step* D (p . R) (['APPLY] . C)) (@ `(cat ,p ,C (step*CK ,D ,R)))]
+
+#;(- the three little continuations -)
+[(('step*DK R C) D) (@ `(step* ,D ,R ,C))]
+[(('step*RK D R C) r) (@ `(step* ,D (,r . ,R) ,C))]
+[(('step*CK D R) C) (@ `(step* ,D ,R ,C))]
+
+#;(- halting? not a problem! -)
+[('step* D (e . R) ()) e] ))
+
+
+(def example-drc-concat
+     '([PROC ([NAME xs]
+              [NAME ys]
+              [LOOKUP xs]
+              [CONST ()]
+              [EQ?]
+              [SELECT ([LOOKUP ys])
+                      ([LOOKUP ys]
+                       [LOOKUP xs]
+                       [CDR]
+                       [LOOKUP concat]
+                       [APPLY]
+                       [LOOKUP xs]
+                       [CAR]
+                       [CONS])]
+              [FORGET ys]
+              [FORGET xs])]
+       [NAME concat]
+       ;;; let's do this!
+       [LOOKUP concat]
+       [APPLY]))
+
+;;; this takes "a while" in conspiracy-interactive :)
+;;; however just admire this language tower: it's scheme interpreter (!),
+;;; running CONSpiracy interpreter, runnng CONSequence interpreter,
+;;; running DRC emulator, runnng a recursive concat program. oh shit!
+
+[e.g. (run `(@ (,'quasiquote (step* () ((q w e) (a s d)) ,example-drc-concat)))
+           drc-machine)
+      ===> (q w e a s d)]

@@ -12,12 +12,13 @@ some really silly examples:
 plus some sketchy implementations of various programming languages (each one written <1h and <100loc):
 - [mccarthy-lisp.cpr](mccarthy-lisp.cpr) -- a short lesson of history
 - [modern-lisp.cpr](modern-lisp.cpr) -- lexically scoping pure lisp
-- [drc-machine.cpr](drc-machine.cpr) -- my stack machine to compile lisp into
 - [fcl-numerical.cpr](fcl-numerical.cpr) -- a simple flowchart language
-- [micro-conspiracy.cpr](micro-conspiracy.cpr) -- µCONSpiracy, a subset of CONSpiracy implemented in itself
 - [post-machine.cpr](post-machine.cpr) -- right/left, mark/erase, jump [un]conditionally
 - [bf-to-c.cpr](bf-to-c.cpr) -- super-primitive brain**FUCK** to C compiler
-- [s-graph.cpr](s-graph.scp) -- /an experiment in different style/ Gluck&Klimov's tiny language from 1993 paper ``Occam's razor in metacomputation''
+- [s-graph.cpr](s-graph.cpr) -- /an experiment in different style/ Gluck&Klimov's tiny language from 1993 paper ``Occam's razor in metacomputation''
+- [drc-machine.cpr](drc-machine.cpr) -- my stack machine to compile lisp[s] into
+- [micro-conspiracy.cpr](micro-conspiracy.cpr) -- µCONSpiracy, a subset of CONSpiracy implemented in itself
+- [micro-consequence.cpr](micro-consequence.cpr) -- µCONSequence, a tiny pattern-matching language /intermediate form for µCONSpiracy/.
 
 and some math:
 - [peano.cpr](peano.cpr) -- toying with Peano numerals

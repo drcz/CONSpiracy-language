@@ -1,0 +1,199 @@
+;;; CONSequence is a tiny pattern-matching language similar to flat refal.
+;;; we used in as an intermediate language in researching possibilities of
+;;; aggresive compilation.
+
+(def list? (phi ([()] #t)
+              ([(_ . xs)] (list? xs))
+              ([_] #f)))
+
+(def foldr (phi ([_ e ()] e)
+              ([op e (x . xs)] (op x (foldr op e xs)))))
+
+(def map (phi ([f xs] (foldr (phi ([h t] `(,(f h) . ,t))) () xs))))
+
+(def every (phi ([p? xs] (foldr (phi ([h t] (and (p? h) t))) #t xs))))
+
+(def list-of (phi ([t?] (phi ([xs] (and (list? xs) (every t? xs)))))))
+
+;;; desugared/internal syntax ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(def variable? symbol?)
+
+(def constant? (phi [(()) #t]
+                  [(('quote (? symbol?))) #t]
+                  [(_) #f]))
+
+(def cons-tree? (phi [((? constant?)) #t]
+                   [((? variable?)) #t]
+                   [(('CONS h t)) (and (cons-tree? h) (cons-tree? t))]
+                   [(_) #f]))
+
+[e.g. (cons-tree? '(CONS 'hi (CONS 'there ()))) ===> #t]
+[e.g. (cons-tree? '(CONS x y)) ===> #t]
+[e.g. (cons-tree? '(CONS (x . y) 23)) ===> #f] ; !
+
+(def application? (phi [(('APPLY (? cons-tree?))) #t]
+                     [(_) #f]))
+
+(def form? (phi [((? cons-tree?)) #t]
+              [((? application?)) #t]
+              [(_) #f]))
+
+[e.g. (form? '(CONS 'qwe (CONS x y))) ===> #t]
+[e.g. (form? '(APPLY (CONS 'fun (CONS x y)))) ===> #t]
+[e.g. (form? '(CONS 'wrong! (APPLY (CONS 'fun (CONS x y))))) ===> #f] ; !
+
+(def pattern? (phi [((? cons-tree?)) #t]
+                 [(('_)) #t]
+                 [(('CONS h t)) (and (pattern? h) (pattern? t))]
+                 [(_) #f]))
+
+[e.g. (pattern? '(CONS h _)) ===> #t]
+[e.g. (pattern? '(APPLY x)) ===> #f]
+
+(def sentence? (phi [([(? pattern?) #;=> (? form?)]) #t]
+                  [(_) #f]))
+
+(def compendium? (list-of sentence?))
+
+[e.g. (compendium?
+       '( [(CONS 'car (CONS h _)) #;=> h]
+          [(CONS 'cdr (CONS _ t)) #;=> t]
+          [(CONS 'cons (CONS h (CONS t ()))) #;=> (CONS h t)] )) ===> #t]
+
+;;; sugared syntax ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(def example-compendium
+     '( [('apd ()       ys k) #;=> (@ `(,k ,ys))]
+        [('apd (x . xs) ys k) #;=> (@ `(apd ,xs ,ys (aK ,x ,k)))]
+        [(('aK x k) v) #;=> (@ `(,k (,x . ,v)))]
+        [('id x) #;=> x] ))
+
+(def rich-form? (phi [((? constant?)) #t]
+                   [((? variable?)) #t]
+                   [(('quote _)) #t]
+                   [(('quasiquote (? proper-qq?))) #t]
+                   [(('@ f)) (rich-form? f)]
+                   [(_) #f]))
+
+(def proper-qq? (phi [(()) #t]
+                   [((? symbol?)) #t]
+                   [(('unquote e)) (rich-form? e)]
+                   [((h . t)) (and (proper-qq? h) (proper-qq? t))]
+                   [(_) #f]))
+                    
+(def rich-pattern? (phi [('_) #t]
+                      [((? variable?)) #t]
+                      [((? constant?)) #t]
+                      [((h . t)) (and (rich-pattern? h) (rich-pattern? t))]))
+
+(def rich-sentence? (phi [([(? rich-pattern?) #;=> (? rich-form?)]) #t]
+                       [(_) #f]))
+
+(def rich-compendium? (list-of rich-sentence?))
+
+[e.g. (rich-compendium? example-compendium) ===> #t]
+
+;;; desugaring ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(def cons-tree<-quote
+     (phi [(()) ()]
+        [((? symbol? s)) `(quote ,s)]
+        [((h . t)) `(CONS ,(cons-tree<-quote h) ,(cons-tree<-quote t))]))
+
+(def cons-tree<-quasiquote
+     (phi [(()) ()]
+        [((? symbol? s)) `(quote ,s)]
+        [(('unquote f)) (form<-rich-form f)]
+        [((h . t)) `(CONS ,(cons-tree<-quasiquote h)
+                          ,(cons-tree<-quasiquote t))]))
+
+(def form<-rich-form
+     (phi [((? constant? c)) c]
+        [((? variable? v)) v]
+        [(('quote e)) (cons-tree<-quote e)]
+        [(('quasiquote qqe)) (cons-tree<-quasiquote qqe)]
+        [(('@ a)) `(APPLY ,(form<-rich-form a))]
+        [((h . t)) `(CONS ,(form<-rich-form h) ,(form<-rich-form t))]))
+
+(def pattern<-rich-pattern
+     (phi [('_) '_]
+        [((? constant? c)) c]
+        [((? variable? v)) v]
+        [(('quote e)) (cons-tree<-quote e)]
+        [((h . t)) `(CONS ,(form<-rich-form h) ,(form<-rich-form t))]))
+
+(def compendium<-rich-compendium
+     (phi [(()) ()]
+        [(([(? rich-pattern? p) #;=> (? rich-form? f)] . rest))
+         `([,(pattern<-rich-pattern p) #;=> ,(form<-rich-form f)]
+           . ,(compendium<-rich-compendium rest))]))
+
+[e.g. (compendium? (compendium<-rich-compendium example-compendium))
+      ===> #t]
+
+;;; re-sugaring... ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(def rich-form<-form
+;;; actually this is a tiny lie; it omits outermost quote and works only on
+;;; ground (ie variable-and-application-free) forms.
+     (phi [(()) ()]
+        [(('quote e)) e]
+        [(('CONS h t)) `(,(rich-form<-form h) . ,(rich-form<-form t))]
+        ;; actually for the interpreter alone we don't need more cases here.
+        ))
+
+;;; CONSequence interpreter ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(def lookup (phi [(() _) 'UNBOUND]
+               [(((k . v) . _) k) v]
+               [((_ . binding) k) (lookup binding k)]))
+
+(def vars-wise (phi [(f '_) '_] 
+                  [(f (? constant? c)) c]
+                  [(f (? variable? v)) (f v)]
+                  [(f ('CONS h t)) `(CONS ,(vars-wise f h) ,(vars-wise f t))]
+                  [(f ('APPLY a)) `(APPLY ,(vars-wise f a))]))
+
+[e.g. (vars-wise (phi [(_) 'LULZ]) '(CONS 'haha (CONS x (CONS y z))))
+      ===> (CONS 'haha (CONS LULZ (CONS LULZ LULZ)))]
+
+(def substituted (phi [(bindng form)
+                     (vars-wise (phi [(v) (lookup bindng v)]) form)]))
+
+
+(def value (phi [((? constant? c) compendium)
+               c]
+              [(('CONS h t) compendium)
+               `(CONS ,(value h compendium) ,(value t compendium))]
+              [(('APPLY f) compendium)
+               (first-match (value f compendium) compendium compendium)]))
+
+(def first-match (phi [(_ () _)
+                     'MISMATCH-ERROR]
+                    [(form* ((pattern form) . compendium*) compendium)
+                     (match (matching pattern form* ())
+                       [#f (first-match form* compendium* compendium)]
+                       [binding (value (substituted binding form) compendium)])]))
+
+(def matching (phi [('_ _ binding)
+                  binding]
+                 [((? constant? c) c binding)
+                  binding]
+                 [((? variable? v) form binding)
+                  (match (lookup binding v)
+                    ['UNBOUND `([,v . ,form] . ,binding)]
+                    [form* (and (= form form*) binding)])]
+                 [(('CONS h t) ('CONS h* t*) binding)
+                  (match (matching h h* binding)
+                    [#f #f]
+                    [binding* (matching t t* binding*)])]
+                 [(_ _ _)
+                  #f]))
+
+[e.g. (matching '(CONS x y) '(CONS 'q (CONS 'w ())) ())
+      ===> ([y . (CONS 'w ())] [x . 'q])]
+
+;;; RUN! ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(def run (phi [(app compendium)
+             (rich-form<-form
+              (value (form<-rich-form app)
+                     (compendium<-rich-compendium compendium)))]))
+
+[e.g. (run '(@ `(apd (q w e) (r t y) id)) example-compendium)
+      ===> (q w e r t y)]

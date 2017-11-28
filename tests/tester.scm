@@ -102,8 +102,8 @@
 ;; ...
 
 (let ([Y '(phi [(f)
-                ((phi [(x) (x x)]) (phi [(g)
-                                         (f (phi [as ((g g) . as)]))]))])])
+              ((phi [(x) (x x)]) (phi [(g)
+                                   (f (phi [as ((g g) . as)]))]))])])
 
   (assert (closure? (EVAL Y '() ERROR)))
   (assert-eq? (EVAL `[(,Y (phi [(f)
